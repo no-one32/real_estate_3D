@@ -115,7 +115,11 @@ const camera = new THREE.PerspectiveCamera(
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-controls.dampingFactor = 0.07;
+/*
+ * How long the view keeps gliding after the mouse / finger is released. 0.07 glided ~14× the last
+ * movement (it went too far past where you stopped); 0.18 keeps a short, soft glide (~5×).
+ */
+controls.dampingFactor = 0.18;
 controls.rotateSpeed = 0.75;
 controls.zoomSpeed = 0.9;
 controls.panSpeed = 0.8;
