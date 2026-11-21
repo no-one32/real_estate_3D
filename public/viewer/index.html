@@ -154,45 +154,53 @@
     margin: 0; translate: -50% -100%;
   }
   .hs-pin {
-    display: flex; align-items: center; gap: 7px;
-    padding: 6px 12px 6px 8px; border-radius: 99px;
-    background: rgba(255, 255, 255, .94); color: #12243d;
-    box-shadow: 0 6px 18px rgba(8, 20, 40, .28);
-    font-size: 13px; font-weight: 600; white-space: nowrap;
-    transition: transform .18s ease, background .18s ease, color .18s ease;
+    display: flex; align-items: center; gap: 0;
+    padding: 4px; border-radius: 99px;
+    background: rgba(255, 255, 255, .95); color: #12243d;
+    box-shadow: 0 6px 18px rgba(8, 20, 40, .3);
+    font-size: 13.5px; font-weight: 600; white-space: nowrap;
+    transition: background .2s ease, color .2s ease, gap .25s ease, padding .25s ease;
   }
-  .hs-pin svg { flex: none; width: 26px; height: 26px; padding: 4px; border-radius: 50%; background: #3b7dd8; color: #fff; }
+  .hs-pin svg { flex: none; width: 30px; height: 30px; padding: 6px; border-radius: 50%; background: #3b7dd8; color: #fff; transition: background .2s ease, color .2s ease; }
   .hs-villa .hs-pin svg { background: #3dba67; }
-  .hs-stem { width: 2px; height: 26px; background: linear-gradient(rgba(255,255,255,.95), rgba(255,255,255,0)); }
-  .hs-stem::after { content: ""; display: block; width: 8px; height: 8px; margin: 22px 0 0 -3px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(59,125,216,.45); }
-  .hs:hover .hs-pin, .hs.on .hs-pin { transform: scale(1.08); background: #3b7dd8; color: #fff; }
-  .hs.on .hs-pin svg, .hs:hover .hs-pin svg { background: #fff; color: #3b7dd8; }
+  .hs-far .hs-pin svg { background: #8a6bd6; }
+  /* the name is hidden: only the round icon shows, the mouse over it widens it */
+  .hs-pin b { max-width: 0; overflow: hidden; opacity: 0; transition: max-width .3s ease, opacity .2s ease; }
+  .hs:hover .hs-pin, .hs:focus-visible .hs-pin, .hs.on .hs-pin { gap: 8px; padding: 4px 14px 4px 4px; background: #3b7dd8; color: #fff; }
+  .hs:hover .hs-pin b, .hs:focus-visible .hs-pin b, .hs.on .hs-pin b { max-width: 240px; opacity: 1; }
+  .hs:hover .hs-pin svg, .hs:focus-visible .hs-pin svg, .hs.on .hs-pin svg { background: #fff; color: #3b7dd8; }
+  .hs:hover, .hs.on { z-index: 2000 !important; }
+  .hs-stem { width: 2px; height: 22px; background: linear-gradient(rgba(255,255,255,.95), rgba(255,255,255,0)); }
+  .hs-stem::after { content: ""; display: block; width: 8px; height: 8px; margin: 18px 0 0 -3px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(59,125,216,.45); }
   @media (max-width: 520px) {
-    .hs-pin { font-size: 11.5px; padding: 4px 10px 4px 6px; gap: 5px; }
-    .hs-pin svg { width: 22px; height: 22px; padding: 3px; }
-    .hs-stem { height: 18px; }
-    .hs-stem::after { margin-top: 14px; }
+    .hs-pin svg { width: 26px; height: 26px; padding: 5px; }
+    .hs-pin { font-size: 12px; }
+    .hs-stem { height: 16px; }
+    .hs-stem::after { margin-top: 12px; }
   }
 
-  /* ---- card of the clicked place ---- */
+  /* ---- info panel of the clicked place (left side) ---- */
   #hcard {
-    position: fixed; z-index: 12; right: max(16px, env(safe-area-inset-right)); bottom: max(64px, calc(env(safe-area-inset-bottom) + 56px));
-    width: min(360px, calc(100vw - 32px)); padding: 18px 18px 16px; border-radius: 18px;
+    position: fixed; z-index: 12;
+    left: max(16px, env(safe-area-inset-left));
+    top: calc(max(14px, env(safe-area-inset-top)) + 58px);
+    width: min(360px, calc(100vw - 32px)); max-height: calc(100vh - 150px); overflow: auto;
+    padding: 20px 20px 22px; border-radius: 18px;
     background: rgba(255, 255, 255, .97); color: #12243d;
     box-shadow: 0 18px 48px rgba(8, 20, 40, .35);
-    opacity: 0; transform: translateY(14px); pointer-events: none;
+    opacity: 0; transform: translateX(-24px); pointer-events: none;
     transition: opacity .3s ease, transform .3s ease;
   }
   #hcard.open { opacity: 1; transform: none; pointer-events: auto; }
-  .hc-x { position: absolute; top: 10px; left: 10px; width: 30px; height: 30px; border: 0; border-radius: 50%; background: #eef3f9; color: #12243d; font-size: 20px; line-height: 1; cursor: pointer; }
-  .hc-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-  .hc-ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: #e7f0fb; color: #3b7dd8; flex: none; }
-  #hcard h2 { margin: 0; font-size: 18px; }
-  #hcard p { margin: 0 0 14px; font-size: 14px; line-height: 1.7; color: #4a5a70; }
-  .hc-actions { display: flex; flex-direction: column; gap: 8px; }
-  .hc-go, .hc-back { display: flex; align-items: center; justify-content: center; gap: 8px; height: 42px; border-radius: 12px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; }
-  .hc-go { background: #3b7dd8; color: #fff; border: 0; }
-  .hc-back { background: #fff; color: #3b7dd8; border: 1px solid #c9daf0; }
+  .hc-x { position: absolute; top: 12px; left: 12px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: #eef3f9; color: #12243d; font-size: 21px; line-height: 1; cursor: pointer; }
+  .hc-x:hover { background: #dfe9f5; }
+  .hc-head { display: flex; align-items: center; gap: 12px; margin: 0 0 12px 40px; }
+  .hc-ico { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; background: #e7f0fb; color: #3b7dd8; flex: none; }
+  #hcard h2 { margin: 0; font-size: 20px; line-height: 1.4; }
+  #hcard p { margin: 0; font-size: 15px; line-height: 1.9; color: #3f4f66; }
+  @media (max-width: 520px) {
+    #hcard { top: auto; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateY(20px); max-height: 45vh; }
+  }
 
   /* ---- places list ---- */
   #places {
@@ -252,6 +260,6 @@
   }
 }
 </script>
-<script type="module" src="./app.js?v=9"></script>
+<script type="module" src="./app.js?v=10"></script>
 </body>
 </html>

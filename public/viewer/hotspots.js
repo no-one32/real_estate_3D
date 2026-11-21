@@ -1,17 +1,15 @@
 /*
  * Hotspots on the 3D model (like the Novoross / Verge3D tour):
- *  - a pin with an icon and a name floats above each place;
- *  - clicking it flies the camera close to that place and opens a card;
- *  - on a villa group the card has "enter" → the existing villa tour (inside the house, 360°);
- *  - the "places" list (top button) does the same as clicking a pin.
+ *  - a round icon floats above each place; the mouse over it widens it to show the name;
+ *  - clicking it flies the camera close to that place and opens an info panel on the left;
+ *  - closing the panel brings the camera back to the overall view;
+ *  - far places (the airport) only show their info: the camera does not fly there;
+ *  - the "places" list (☰ button) does the same as clicking a pin.
  *
  * Positions are in FINAL.glb coordinates (centimetres, Y up), read off the model's top view.
  * To move a pin: open the viewer with ?edit=1, click on the model, the coordinates are copied
  * (and shown at the bottom); paste them into `at` below.
  */
-
-/* where "enter the villa" goes (the existing tour with the inside of the villas) */
-export const VILLA_TOUR_URL = 'https://axisstudio.tech/c/villas-ajyad';
 
 const ICONS = {
     mosque: '<path d="M4 21V11a8 6 0 0 1 16 0v10M2 21h20M12 2v3M9.5 21v-4a2.5 2.5 0 0 1 5 0v4"/>',
@@ -22,35 +20,40 @@ const ICONS = {
     water: '<path d="M2 15c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2M2 20c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2M12 3s-4 4.5-4 7a4 4 0 0 0 8 0c0-2.5-4-7-4-7Z"/>',
     road: '<path d="M4 21 8 3M20 21 16 3M12 5v2M12 11v2M12 17v2"/>',
     home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1Z"/>',
+    plane: '<path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2Z"/>',
 };
 
 /*
  * at:   [x, y, z] in the model (cm). y = height of the pin's foot (top of the building).
  * view: how far the camera stops from the place (cm) when you click it.
+ * far:  true = only the info opens, the camera stays where it is (places outside the project).
+ * snap: true = the height is taken from the ground under the point when the model loads.
  */
 export const HOTSPOTS = [
     { id: 'mosque', icon: 'mosque', title: 'المسجد', at: [11950, 1700, -7000], view: 7000,
-      text: 'مسجد الحي في قلب المشروع، على بُعد خطوات من الفلل.' },
+      text: 'مسجد الحي في قلب المشروع، بمئذنته وقبّته، على بُعد خطوات من الفلل. يصل إليه السكان مشياً لأداء الصلوات في الأوقات الخمسة.' },
     { id: 'center', icon: 'building', title: 'المركز المجتمعي', at: [18000, 1660, -7900], view: 6500,
-      text: 'مبنى الخدمات والأنشطة لسكان المشروع، بجانب المسجد.' },
+      text: 'مبنى الخدمات والأنشطة لسكان المشروع بجانب المسجد، بواجهات زجاجية تطل على الحديقة.' },
     { id: 'park', icon: 'park', title: 'الحديقة', at: [17200, 350, -3000], view: 6000,
-      text: 'المساحة الخضراء في وسط المشروع: ممرات مشي وأشجار وجلسات.' },
+      text: 'المساحة الخضراء في وسط المشروع: ممرات للمشي، أشجار نخيل وجلسات للعائلات، بعيداً عن حركة السيارات.' },
     { id: 'school', icon: 'school', title: 'المدرسة', at: [11900, 1400, -800], view: 6000,
-      text: 'مدرسة داخل المشروع، يصلها الأطفال مشياً من الفلل.' },
+      text: 'مدرسة داخل المشروع بساحة واسعة، يصلها الأطفال مشياً من الفلل دون عبور الطريق الرئيسي.' },
     { id: 'play', icon: 'play', title: 'ملعب الأطفال', at: [11000, 360, 4200], view: 3200,
-      text: 'منطقة ألعاب آمنة للأطفال بجانب المدرسة.' },
+      text: 'منطقة ألعاب آمنة للأطفال بأرضية رملية وألعاب وزحاليق، بجانب المدرسة وتحت نظر الأهل.' },
     { id: 'road', icon: 'road', title: 'الطريق الرئيسي', at: [29300, 60, -9000], view: 14000,
-      text: 'الشارع الرئيسي المشجّر على طرف المشروع: الدخول والخروج بسهولة.' },
+      text: 'الشارع الرئيسي المشجّر على طرف المشروع، يربط الحي بالمدينة ويسهّل الدخول والخروج بالسيارة.' },
     { id: 'lake', icon: 'water', title: 'البحيرة', at: [43000, 0, 0], view: 18000,
-      text: 'البحيرة والواجهة المائية على الجانب الشرقي من المشروع.' },
+      text: 'البحيرة والواجهة المائية على الجانب الشرقي من المشروع، مع ممشى على طول الضفة.' },
     { id: 'villas-north', icon: 'home', title: 'فلل قرب المسجد', at: [9000, 1000, -16500], view: 9000, villa: true,
-      text: 'مجموعات فلل قريبة من المسجد والمركز المجتمعي.' },
+      text: 'مجموعات من الفلل قريبة من المسجد والمركز المجتمعي، في شوارع داخلية هادئة.' },
     { id: 'villas-west', icon: 'home', title: 'فلل الشوارع الهادئة', at: [-5000, 1000, -6000], view: 10000, villa: true,
-      text: 'شوارع داخلية هادئة بعيداً عن الطريق الرئيسي.' },
+      text: 'فلل في شوارع داخلية هادئة بعيداً عن الطريق الرئيسي، مناسبة للعائلات الباحثة عن الهدوء.' },
     { id: 'villas-south', icon: 'home', title: 'فلل قرب المدرسة', at: [5000, 1000, 11000], view: 10000, villa: true,
-      text: 'صفوف الفلل المنحنية قرب المدرسة وملعب الأطفال.' },
+      text: 'صفوف الفلل المنحنية قرب المدرسة وملعب الأطفال، يصل إليها الأطفال مشياً.' },
     { id: 'villas-east', icon: 'home', title: 'فلل قرب الحديقة', at: [25000, 1000, -8000], view: 9000, villa: true,
-      text: 'فلل بين الحديقة والطريق الرئيسي.' },
+      text: 'فلل بين الحديقة والطريق الرئيسي، قريبة من المساحات الخضراء ومن مخرج المشروع.' },
+    { id: 'airport', icon: 'plane', title: 'مطار أبها الدولي', at: [-38000, 0, -38000], far: true, snap: true,
+      text: 'مطار أبها الدولي على بُعد نحو 25 دقيقة بالسيارة من المشروع، مع رحلات داخلية ودولية.' },
 ];
 
 const svg = (k, size = 18) =>
@@ -69,7 +72,8 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
     const items = HOTSPOTS.map((h) => {
         const el = document.createElement('button');
         el.type = 'button';
-        el.className = 'hs' + (h.villa ? ' hs-villa' : '');
+        el.className = 'hs' + (h.villa ? ' hs-villa' : '') + (h.far ? ' hs-far' : '');
+        el.setAttribute('aria-label', h.title);
         el.innerHTML = `<span class="hs-pin">${svg(h.icon)}<b>${h.title}</b></span><i class="hs-stem"></i>`;
         el.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -78,6 +82,16 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         layer.appendChild(el);
         return { h, el, world: toWorld(h.at) };
     });
+
+    /* far places: put the pin on the ground under them (the terrain is not flat) */
+    const down = new THREE.Raycaster();
+    for (const it of items) {
+        if (!it.h.snap) continue;
+        const top = toWorld([it.h.at[0], 1e6, it.h.at[2]]);
+        down.set(top, new THREE.Vector3(0, -1, 0));
+        const hit = down.intersectObject(root, true)[0];
+        if (hit) it.world.copy(hit.point);
+    }
 
     /* ---------- places list (like the Novoross side list) ---------- */
     if (list) {
@@ -88,12 +102,10 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
             if (!b) return;
             const h = HOTSPOTS.find((x) => x.id === b.dataset.id);
             if (h) open(h);
-            if (window.innerWidth < 700) list.classList.remove('open');
+            list.classList.remove('open');
         });
     }
     listBtn?.addEventListener('click', () => list?.classList.toggle('open'));
-    /* computer: the list is open from the start; phone: behind the ☰ button */
-    if (list && window.innerWidth >= 900) list.classList.add('open');
 
     /* ---------- camera flight ---------- */
     let flight = null;
@@ -123,27 +135,35 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
 
     let current = null;
     function open(h) {
+        const wasOpen = !!current;
         current = h;
-        const v = viewFor(h);
-        flyTo(v.pos, v.target);
+        /* far places (airport): only the info, the camera stays */
+        if (!h.far) {
+            const v = viewFor(h);
+            flyTo(v.pos, v.target);
+        } else if (wasOpen) {
+            goHome();
+        }
         items.forEach((it) => it.el.classList.toggle('on', it.h === h));
+        list?.classList.remove('open'); /* same place on the left as the panel */
         card.innerHTML = `
             <button type="button" class="hc-x" aria-label="إغلاق">×</button>
-            <div class="hc-head"><span class="hc-ico">${svg(h.icon, 22)}</span><h2>${h.title}</h2></div>
-            <p>${h.text}</p>
-            <div class="hc-actions">
-                ${h.villa ? `<a class="hc-go" href="${VILLA_TOUR_URL}" target="_blank" rel="noopener">${svg('home', 17)} دخول الفيلا والجولة الداخلية</a>` : ''}
-                <button type="button" class="hc-back">العودة للمنظر العام</button>
-            </div>`;
+            <div class="hc-head"><span class="hc-ico">${svg(h.icon, 24)}</span><h2>${h.title}</h2></div>
+            <p>${h.text}</p>`;
         card.classList.add('open');
-        card.querySelector('.hc-x').onclick = close;
-        card.querySelector('.hc-back').onclick = () => { close(); goHome(); };
+        card.querySelector('.hc-x').onclick = () => close(true);
     }
-    function close() {
+    /* closing the panel brings back the overall view */
+    function close(backHome = false) {
+        const had = current;
         current = null;
         card.classList.remove('open');
         items.forEach((it) => it.el.classList.remove('on'));
+        if (backHome && had && !had.far) goHome();
     }
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && current) close(true);
+    });
     function goHome() {
         const { position, target } = homeView();
         flyTo(position.clone(), target.clone(), 1400);
