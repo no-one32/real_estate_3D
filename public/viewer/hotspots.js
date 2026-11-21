@@ -24,36 +24,49 @@ const ICONS = {
 };
 
 /*
- * at:   [x, y, z] in the model (cm). y = height of the pin's foot (top of the building).
+ * at:   [x, y, z] in the model (cm). y = the surface right under the point (measured with a ray from above),
+ *       so the pin sits on the roof / ground and does not slide against the buildings when the camera moves.
  * view: how far the camera stops from the place (cm) when you click it.
  * far:  true = only the info opens, the camera stays where it is (places outside the project).
  * snap: true = the height is taken from the ground under the point when the model loads.
  */
 export const HOTSPOTS = [
-    { id: 'mosque', icon: 'mosque', title: 'المسجد', at: [11950, 1700, -7000], view: 7000,
-      text: 'مسجد الحي في قلب المشروع، بمئذنته وقبّته، على بُعد خطوات من الفلل. يصل إليه السكان مشياً لأداء الصلوات في الأوقات الخمسة.' },
-    { id: 'center', icon: 'building', title: 'المركز المجتمعي', at: [18000, 1660, -7900], view: 6500,
-      text: 'مبنى الخدمات والأنشطة لسكان المشروع بجانب المسجد، بواجهات زجاجية تطل على الحديقة.' },
-    { id: 'park', icon: 'park', title: 'الحديقة', at: [17200, 350, -3000], view: 6000,
-      text: 'المساحة الخضراء في وسط المشروع: ممرات للمشي، أشجار نخيل وجلسات للعائلات، بعيداً عن حركة السيارات.' },
-    { id: 'school', icon: 'school', title: 'المدرسة', at: [11900, 1400, -800], view: 6000,
-      text: 'مدرسة داخل المشروع بساحة واسعة، يصلها الأطفال مشياً من الفلل دون عبور الطريق الرئيسي.' },
-    { id: 'play', icon: 'play', title: 'ملعب الأطفال', at: [11000, 360, 4200], view: 3200,
-      text: 'منطقة ألعاب آمنة للأطفال بأرضية رملية وألعاب وزحاليق، بجانب المدرسة وتحت نظر الأهل.' },
-    { id: 'road', icon: 'road', title: 'الطريق الرئيسي', at: [29300, 60, -9000], view: 14000,
-      text: 'الشارع الرئيسي المشجّر على طرف المشروع، يربط الحي بالمدينة ويسهّل الدخول والخروج بالسيارة.' },
-    { id: 'lake', icon: 'water', title: 'البحيرة', at: [43000, 0, 0], view: 18000,
-      text: 'البحيرة والواجهة المائية على الجانب الشرقي من المشروع، مع ممشى على طول الضفة.' },
-    { id: 'villas-north', icon: 'home', title: 'فلل قرب المسجد', at: [9000, 1000, -16500], view: 9000, villa: true,
-      text: 'مجموعات من الفلل قريبة من المسجد والمركز المجتمعي، في شوارع داخلية هادئة.' },
-    { id: 'villas-west', icon: 'home', title: 'فلل الشوارع الهادئة', at: [-5000, 1000, -6000], view: 10000, villa: true,
-      text: 'فلل في شوارع داخلية هادئة بعيداً عن الطريق الرئيسي، مناسبة للعائلات الباحثة عن الهدوء.' },
-    { id: 'villas-south', icon: 'home', title: 'فلل قرب المدرسة', at: [5000, 1000, 11000], view: 10000, villa: true,
-      text: 'صفوف الفلل المنحنية قرب المدرسة وملعب الأطفال، يصل إليها الأطفال مشياً.' },
-    { id: 'villas-east', icon: 'home', title: 'فلل قرب الحديقة', at: [25000, 1000, -8000], view: 9000, villa: true,
-      text: 'فلل بين الحديقة والطريق الرئيسي، قريبة من المساحات الخضراء ومن مخرج المشروع.' },
+    { id: 'mosque', icon: 'mosque', title: 'المسجد', at: [11950, 1504, -7000], view: 7000,
+      text: 'مسجد الحي في قلب المشروع، بقبّته ومئذنته، على بُعد خطوات من الفلل. يصل إليه السكان مشياً لأداء الصلوات في الأوقات الخمسة دون الحاجة إلى السيارة.',
+      facts: ['في وسط المشروع', 'قبّة ومئذنة', 'ساحة حول المسجد', 'قريب من المدرسة والحديقة'] },
+    { id: 'center', icon: 'building', title: 'المركز الرياضي', at: [18000, 1328, -7900], view: 6500,
+      text: 'مبنى كبير بجانب المسجد، فوق سطحه ملاعب خضراء للرياضة، وفي داخله مساحات للخدمات والأنشطة لسكان المشروع.',
+      facts: ['ملاعب على السطح', 'بجانب المسجد', 'يطل على الحديقة'] },
+    { id: 'park', icon: 'park', title: 'الحديقة', at: [17200, 15, -3000], view: 6000,
+      text: 'المساحة الخضراء في وسط المشروع: ممرات متعرّجة للمشي، أشجار نخيل وشجيرات، ومسطحات عشبية للجلوس مع العائلة، بعيداً عن حركة السيارات.',
+      facts: ['ممرات للمشي', 'أشجار نخيل', 'مسطحات خضراء', 'بين المسجد والمدرسة'] },
+    { id: 'school', icon: 'school', title: 'المدرسة', at: [11900, 412, -800], view: 6000,
+      text: 'مدرسة داخل المشروع بمبنيين وساحة واسعة يرتفع فيها العلم، يصلها الأطفال مشياً من الفلل دون عبور الطريق الرئيسي.',
+      facts: ['داخل المشروع', 'ساحة واسعة', 'بجانب ملعب الأطفال', 'بعيدة عن الطريق الرئيسي'] },
+    { id: 'play', icon: 'play', title: 'ملعب الأطفال', at: [11000, 28, 4200], view: 3200,
+      text: 'منطقة ألعاب مسوّرة للأطفال بأرضية رملية، فيها زحاليق وألعاب، محاطة بالعشب والأشجار، بجانب المدرسة وتحت نظر الأهل.',
+      facts: ['مسوّر وآمن', 'أرضية رملية', 'زحاليق وألعاب', 'بجانب المدرسة'] },
+    { id: 'road', icon: 'road', title: 'الطريق الرئيسي', at: [29300, 17, -9000], view: 14000,
+      text: 'الشارع الرئيسي المشجّر على طرف المشروع، بين الفلل والبحيرة. يربط الحي بالمدينة ويسهّل الدخول والخروج بالسيارة.',
+      facts: ['على طرف المشروع', 'مشجّر', 'بمحاذاة البحيرة', 'سهولة الوصول بالسيارة'] },
+    { id: 'lake', icon: 'water', title: 'البحيرة', at: [43000, 28, 0], view: 18000,
+      text: 'البحيرة والواجهة المائية على الجانب الشرقي من المشروع، تمنح الفلل القريبة منها إطلالة مفتوحة وهواءً أنقى.',
+      facts: ['على الجانب الشرقي', 'إطلالة مفتوحة', 'على طول الطريق الرئيسي'] },
+    { id: 'villas-north', icon: 'home', title: 'فلل قرب المسجد', at: [9000, 28, -16500], view: 9000, villa: true,
+      text: 'مجموعات من الفلل في شوارع داخلية هادئة، على مسافة قصيرة من المسجد والمركز الرياضي.',
+      facts: ['قريبة من المسجد', 'شوارع داخلية', 'فلل بحدائق خاصة'] },
+    { id: 'villas-west', icon: 'home', title: 'فلل الشوارع الهادئة', at: [-5000, 28, -6000], view: 10000, villa: true,
+      text: 'فلل في شوارع داخلية هادئة بعيداً عن الطريق الرئيسي وحركة السيارات، مناسبة للعائلات الباحثة عن الهدوء.',
+      facts: ['بعيدة عن الطريق الرئيسي', 'هدوء وخصوصية', 'شوارع مشجّرة'] },
+    { id: 'villas-south', icon: 'home', title: 'فلل قرب المدرسة', at: [5000, 17, 11000], view: 10000, villa: true,
+      text: 'صفوف الفلل المنحنية قرب المدرسة وملعب الأطفال، يذهب منها الأطفال إلى المدرسة مشياً.',
+      facts: ['قريبة من المدرسة', 'قريبة من ملعب الأطفال', 'صفوف منحنية'] },
+    { id: 'villas-east', icon: 'home', title: 'فلل قرب الحديقة', at: [25000, 1060, -8000], view: 9000, villa: true,
+      text: 'فلل بين الحديقة والطريق الرئيسي، قريبة من المساحات الخضراء ومن مخرج المشروع.',
+      facts: ['قريبة من الحديقة', 'قريبة من مخرج المشروع', 'قرب البحيرة'] },
     { id: 'airport', icon: 'plane', title: 'مطار أبها الدولي', at: [-38000, 0, -38000], far: true, snap: true,
-      text: 'مطار أبها الدولي على بُعد نحو 25 دقيقة بالسيارة من المشروع، مع رحلات داخلية ودولية.' },
+      text: 'مطار أبها الدولي على بُعد نحو 25 دقيقة بالسيارة من المشروع، مع رحلات داخلية ودولية.',
+      facts: ['نحو 25 دقيقة بالسيارة', 'رحلات داخلية ودولية'] },
 ];
 
 const svg = (k, size = 18) =>
@@ -112,6 +125,11 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
     const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
     function flyTo(pos, target, ms = 1600) {
+        /* drop the rotation still gliding from the last drag, so it does not carry on after the flight */
+        const damp = controls.enableDamping;
+        controls.enableDamping = false;
+        controls.update();
+        controls.enableDamping = damp;
         flight = {
             p0: camera.position.clone(), t0: controls.target.clone(),
             p1: pos, t1: target, start: performance.now(), ms,
@@ -146,10 +164,17 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         }
         items.forEach((it) => it.el.classList.toggle('on', it.h === h));
         list?.classList.remove('open'); /* same place on the left as the panel */
+        /* picture of the place, rendered from the model (places/<id>.webp); none for far places */
+        const img = h.far ? '' : `<img class="hc-img" src="./places/${h.id}.webp" alt="${h.title}" loading="lazy" onerror="this.remove()">`;
         card.innerHTML = `
+            ${img}
             <button type="button" class="hc-x" aria-label="إغلاق">×</button>
-            <div class="hc-head"><span class="hc-ico">${svg(h.icon, 24)}</span><h2>${h.title}</h2></div>
-            <p>${h.text}</p>`;
+            <div class="hc-body">
+                <div class="hc-head"><span class="hc-ico">${svg(h.icon, 24)}</span><h2>${h.title}</h2></div>
+                <p>${h.text}</p>
+                ${h.facts?.length ? `<ul class="hc-facts">${h.facts.map((f) => `<li>${f}</li>`).join('')}</ul>` : ''}
+            </div>`;
+        card.classList.toggle('has-img', !!img);
         card.classList.add('open');
         card.querySelector('.hc-x').onclick = () => close(true);
     }
@@ -215,7 +240,9 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
             const off = v.x < -1.1 || v.x > 1.1 || v.y < -1.1 || v.y > 1.1;
             /* villa-group pins only from far away; once close, the place pins take over */
             const villaHide = it.h.villa && camDist < it.h.view * normScale * 0.6 && current !== it.h;
-            if (behind || off || villaHide) {
+            /* a pin right next to the camera would swing across the screen at the smallest move */
+            const tooClose = camera.position.distanceTo(it.world) < camDist * 0.3;
+            if (behind || off || villaHide || tooClose) {
                 it.el.style.display = 'none';
                 continue;
             }

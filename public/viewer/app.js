@@ -5,7 +5,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { initHotspots } from './hotspots.js?v=2';
+import { initHotspots } from './hotspots.js?v=3';
 
 /* ------------------------------------------------------------------ *
  *  Device profile — same agreed settings as the previous viewer
@@ -217,6 +217,7 @@ function sunDirectionFromTime(t) {
 }
 
 let shadowFrustumDist = -1;
+const _lf = new THREE.Vector3(), _lu = new THREE.Vector3(), _lr = new THREE.Vector3(), _lc = new THREE.Vector3();
 const shadowFrustumTarget = new THREE.Vector3(Infinity, Infinity, Infinity);
 
 /*
@@ -235,8 +236,24 @@ function updateShadowFrustum(force) {
     const R = THREE.MathUtils.clamp(Math.ceil((dist * 0.95) / 16) * 16, 16, 160);
     const lightDist = Math.max(R * 2.5, 260);
 
-    sun.target.position.copy(controls.target);
-    sun.position.copy(controls.target).addScaledVector(SUN.dir, lightDist);
+    /*
+     * Snap the shadow centre to the shadow map's pixel grid (seen from the sun). Without this the
+     * shadow map slides by a fraction of a pixel at every move and all shadow edges crawl / shimmer
+     * while the camera moves.
+     */
+    const texelSize = (2 * R) / sun.shadow.mapSize.x;
+    _lf.copy(SUN.dir).negate();
+    _lu.set(0, 1, 0);
+    if (Math.abs(_lf.y) > 0.999) _lu.set(0, 0, 1);
+    _lr.crossVectors(_lf, _lu).normalize();
+    _lu.crossVectors(_lr, _lf).normalize();
+    const t = controls.target;
+    const a = Math.round(t.dot(_lr) / texelSize) * texelSize;
+    const b = Math.round(t.dot(_lu) / texelSize) * texelSize;
+    _lc.copy(_lr).multiplyScalar(a).addScaledVector(_lu, b).addScaledVector(_lf, t.dot(_lf));
+
+    sun.target.position.copy(_lc);
+    sun.position.copy(_lc).addScaledVector(SUN.dir, lightDist);
     sun.target.updateMatrixWorld();
     sun.updateMatrixWorld();
 
@@ -250,8 +267,7 @@ function updateShadowFrustum(force) {
     sc.updateProjectionMatrix();
 
     /* bias scaled to the real world size of one shadow texel (kills acne) */
-    const texel = (2 * R) / sun.shadow.mapSize.x;
-    sun.shadow.normalBias = Math.max(0.03, texel * 1.4);
+    sun.shadow.normalBias = Math.max(0.03, texelSize * 1.4);
     sun.shadow.bias = -0.00006;
 
     shadowFrustumDist = dist;

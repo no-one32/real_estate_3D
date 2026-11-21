@@ -184,22 +184,30 @@
     position: fixed; z-index: 12;
     left: max(16px, env(safe-area-inset-left));
     top: calc(max(14px, env(safe-area-inset-top)) + 58px);
-    width: min(360px, calc(100vw - 32px)); max-height: calc(100vh - 150px); overflow: auto;
-    padding: 20px 20px 22px; border-radius: 18px;
+    width: min(380px, calc(100vw - 32px)); max-height: calc(100vh - 100px); overflow: auto;
+    padding: 0; border-radius: 18px;
     background: rgba(255, 255, 255, .97); color: #12243d;
     box-shadow: 0 18px 48px rgba(8, 20, 40, .35);
     opacity: 0; transform: translateX(-24px); pointer-events: none;
     transition: opacity .3s ease, transform .3s ease;
   }
   #hcard.open { opacity: 1; transform: none; pointer-events: auto; }
-  .hc-x { position: absolute; top: 12px; left: 12px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: #eef3f9; color: #12243d; font-size: 21px; line-height: 1; cursor: pointer; }
+  .hc-img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 18px 18px 0 0; background: #e7eef6; }
+  .hc-body { padding: 18px 20px 22px; }
+  #hcard.has-img .hc-x { background: rgba(255, 255, 255, .92); box-shadow: 0 2px 8px rgba(0, 0, 0, .2); }
+  #hcard.has-img .hc-head { margin-left: 0; }
+  .hc-facts { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .hc-facts li { display: flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 99px; background: #eef4fb; color: #22426d; font-size: 13px; font-weight: 600; }
+  .hc-facts li::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #3b7dd8; }
+  .hc-x { position: absolute; z-index: 1; top: 12px; left: 12px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: #eef3f9; color: #12243d; font-size: 21px; line-height: 1; cursor: pointer; }
   .hc-x:hover { background: #dfe9f5; }
   .hc-head { display: flex; align-items: center; gap: 12px; margin: 0 0 12px 40px; }
   .hc-ico { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; background: #e7f0fb; color: #3b7dd8; flex: none; }
   #hcard h2 { margin: 0; font-size: 20px; line-height: 1.4; }
   #hcard p { margin: 0; font-size: 15px; line-height: 1.9; color: #3f4f66; }
   @media (max-width: 520px) {
-    #hcard { top: auto; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateY(20px); max-height: 45vh; }
+    #hcard { top: auto; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateY(20px); max-height: 58vh; }
+    .hc-img { aspect-ratio: 2 / 1; }
   }
 
   /* ---- places list ---- */
@@ -260,6 +268,6 @@
   }
 }
 </script>
-<script type="module" src="./app.js?v=10"></script>
+<script type="module" src="./app.js?v=11"></script>
 </body>
 </html>
