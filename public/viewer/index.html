@@ -170,6 +170,9 @@
   .hs:hover .hs-pin b, .hs:focus-visible .hs-pin b, .hs.on .hs-pin b { max-width: 240px; opacity: 1; }
   .hs:hover .hs-pin svg, .hs:focus-visible .hs-pin svg, .hs.on .hs-pin svg { background: #fff; color: #3b7dd8; }
   .hs:hover, .hs.on { z-index: 2000 !important; }
+  /* behind the houses (seen from the street): fade out and let clicks pass through to the 3D view */
+  .hs { transition: opacity .25s ease; }
+  .hs.hs-hide { opacity: 0; pointer-events: none; }
   .hs-stem { width: 2px; height: 22px; background: linear-gradient(rgba(255,255,255,.95), rgba(255,255,255,0)); }
   .hs-stem::after { content: ""; display: block; width: 8px; height: 8px; margin: 18px 0 0 -3px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(59,125,216,.45); }
   @media (max-width: 520px) {
@@ -184,7 +187,7 @@
     position: fixed; z-index: 12;
     left: max(16px, env(safe-area-inset-left));
     top: calc(max(14px, env(safe-area-inset-top)) + 58px);
-    width: min(380px, calc(100vw - 32px)); max-height: calc(100vh - 100px); overflow: auto;
+    width: min(420px, calc(100vw - 32px)); max-height: calc(100vh - 100px); overflow: auto;
     padding: 0; border-radius: 18px;
     background: rgba(255, 255, 255, .97); color: #12243d;
     box-shadow: 0 18px 48px rgba(8, 20, 40, .35);
@@ -205,6 +208,7 @@
   .hc-ico { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; background: #e7f0fb; color: #3b7dd8; flex: none; }
   #hcard h2 { margin: 0; font-size: 20px; line-height: 1.4; }
   #hcard p { margin: 0; font-size: 15px; line-height: 1.9; color: #3f4f66; }
+  #hcard p + p { margin-top: 10px; }
   @media (max-width: 520px) {
     #hcard { top: auto; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateY(20px); max-height: 58vh; }
     .hc-img { aspect-ratio: 2 / 1; }
@@ -268,6 +272,6 @@
   }
 }
 </script>
-<script type="module" src="./app.js?v=11"></script>
+<script type="module" src="./app.js?v=13"></script>
 </body>
 </html>
