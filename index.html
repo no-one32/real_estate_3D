@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b0d12" />
+    <title>Model Studio — GLB / GLTF Scene Editor</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230b0d12'/><path d='M16 5l9 5v12l-9 5-9-5V10z' fill='none' stroke='%23ffb454' stroke-width='2'/></svg>" />
+  </head>
+  <body>
+    <div id="viewport" aria-label="3D viewport"></div>
+
+    <header id="topbar">
+      <div class="brand">
+        <div class="brand-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 2.8l8 4.6v9.2l-8 4.6-8-4.6V7.4z"/><path d="M12 12.2l8-4.6M12 12.2L4 7.6M12 12.2v9"/></svg>
+        </div>
+        <div class="brand-text">
+          <strong>Model Studio</strong>
+          <span>GLB · GLTF</span>
+        </div>
+      </div>
+
+      <div class="model-chip" id="modelChip">
+        <span class="dot"></span>
+        <span id="modelName">No model loaded</span>
+      </div>
+
+      <div class="hud">
+        <div class="hud-item" title="Frames per second"><b id="statFps">—</b><span>FPS</span></div>
+        <div class="hud-item" title="Rendered triangles"><b id="statTris">0</b><span>Tris</span></div>
+        <div class="hud-item" title="Meshes in scene"><b id="statMeshes">0</b><span>Meshes</span></div>
+        <div class="hud-item" title="Draw calls"><b id="statDraw">0</b><span>Draws</span></div>
+      </div>
+
+      <div class="top-actions">
+        <button class="btn ghost" id="btnScreenshot" title="High quality screenshot">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8.5A2.5 2.5 0 016.5 6h1l1.2-2h6.6L16.5 6h1A2.5 2.5 0 0120 8.5v8A2.5 2.5 0 0117.5 19h-11A2.5 2.5 0 014 16.5z"/><circle cx="12" cy="12.5" r="3.4"/></svg>
+          <span>Shot</span>
+        </button>
+        <button class="btn ghost" id="btnExportGlb" title="Export edited model as GLB">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v11m0 0l-4-4m4 4l4-4"/><path d="M4 15v3.5A2.5 2.5 0 006.5 21h11a2.5 2.5 0 002.5-2.5V15"/></svg>
+          <span>GLB</span>
+        </button>
+        <button class="btn ghost" id="btnSave" title="Export scene settings as JSON">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 3.8h10.2L19 7.6v12.6H5z"/><path d="M8 3.8v5h7v-5M8 20v-6h8v6"/></svg>
+          <span>Save</span>
+        </button>
+        <button class="btn ghost" id="btnImport" title="Import scene settings JSON">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 15V4m0 0L8 8m4-4l4 4"/><path d="M4 15v3.5A2.5 2.5 0 006.5 21h11a2.5 2.5 0 002.5-2.5V15"/></svg>
+          <span>Load</span>
+        </button>
+        <button class="btn icon-only" id="btnFullscreen" title="Fullscreen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <input type="file" id="modelInput" accept=".glb,.gltf,.bin,image/*" multiple hidden />
+    <input type="file" id="envInput" accept=".hdr,.exr" hidden />
+    <input type="file" id="settingsInput" accept=".json,application/json" hidden />
+
+    <aside id="panel">
+      <div class="panel-scroll">
+        <section class="drop-section">
+          <div class="dropzone" id="dropzone">
+            <input type="file" id="modelBrowse" accept=".glb,.gltf,.bin,image/*" multiple hidden />
+            <svg class="dz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M4 15v3.5A2.5 2.5 0 006.5 21h11a2.5 2.5 0 002.5-2.5V15"/></svg>
+            <div class="dz-text">
+              <strong>Drop a model here</strong>
+              <span>.glb / .gltf + textures</span>
+            </div>
+            <div class="dz-actions">
+              <button class="btn accent small" id="btnBrowseModel" type="button">Browse</button>
+              <button class="btn ghost small" id="btnLoadLatest" type="button" title="Load the bundled latest model (1 A TEST V2.glb)">Latest</button>
+            </div>
+          </div>
+
+          <div class="load-wrap" id="loadWrap" hidden>
+            <div class="load-head"><span id="loadText">Loading…</span><span id="loadPct">0%</span></div>
+            <div class="progress"><i id="loadBar"></i></div>
+          </div>
+
+          <div class="model-info" id="modelInfo" hidden>
+            <div class="mi-name" id="metaName">—</div>
+            <div class="mi-grid">
+              <div><span>Size</span><b id="metaSize">—</b></div>
+              <div><span>Meshes</span><b id="metaMeshes">—</b></div>
+              <div><span>Materials</span><b id="metaMaterials">—</b></div>
+              <div><span>Triangles</span><b id="metaTris">—</b></div>
+            </div>
+          </div>
+        </section>
+
+        <nav class="tabs" id="tabs">
+          <button class="tab active" data-tab="scene">Scene</button>
+          <button class="tab" data-tab="sun">Sun</button>
+          <button class="tab" data-tab="materials">Materials</button>
+          <button class="tab" data-tab="objects">Objects</button>
+          <button class="tab" data-tab="hotspots">Hotspots</button>
+          <button class="tab" data-tab="io">Export</button>
+        </nav>
+
+        <div class="tab-pane active" id="tab-scene">
+          <section class="section">
+            <div class="section-title">
+              <span>Environment</span>
+              <span class="badge" id="envName">Studio room</span>
+            </div>
+
+            <div class="btn-row" id="envButtons">
+              <button class="btn subtle" id="btnEnvBrowse">Upload HDRI</button>
+              <button class="btn subtle" id="btnEnvSample">Sample sky</button>
+              <button class="btn subtle" id="btnEnvRoom">Reset room</button>
+            </div>
+
+            <label class="switch-row">
+              <span>Show background</span>
+              <input type="checkbox" id="envShowBg" checked />
+              <i class="switch"></i>
+            </label>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Background mode</span></span>
+              <select id="bgMode" class="select">
+                <option value="hdri">HDRI / environment</option>
+                <option value="gradient">Gradient</option>
+                <option value="solid">Solid color</option>
+              </select>
+            </label>
+
+            <div class="color-row" id="bgColorRow" hidden>
+              <span>Background color</span>
+              <input type="color" id="bgColor" value="#0b0d12" />
+            </div>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Environment intensity</span><output id="envIntensityOut">0.85</output></span>
+              <input type="range" id="envIntensity" min="0" max="4" step="0.05" value="0.85" />
+            </label>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Background intensity</span><output id="bgIntensityOut">1.00</output></span>
+              <input type="range" id="bgIntensity" min="0" max="3" step="0.05" value="1" />
+            </label>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Background blur</span><output id="bgBlurOut">0.00</output></span>
+              <input type="range" id="bgBlur" min="0" max="1" step="0.01" value="0" />
+            </label>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>HDRI rotation</span><output id="envRotationOut">0°</output></span>
+              <input type="range" id="envRotation" min="-180" max="180" step="1" value="0" />
+            </label>
+          </section>
+
+          <section class="section">
+            <div class="section-title"><span>Display</span><span class="badge" id="qualityBadge">Desktop</span></div>
+
+            <div class="btn-row" id="qualityPresets">
+              <button class="btn subtle active" type="button" data-quality="desktop">Desktop</button>
+              <button class="btn subtle" type="button" data-quality="mobile">Mobile</button>
+            </div>
+            <p class="hint">Mobile preview caps the pixel ratio at 1× and disables shadows — matches the lightweight phone profile.</p>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Exposure</span><output id="exposureOut">1.00</output></span>
+              <input type="range" id="exposure" min="0.1" max="3" step="0.05" value="1" />
+            </label>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Tone mapping</span></span>
+              <select id="toneMapping" class="select">
+                <option value="aces">ACES Filmic</option>
+                <option value="agx">AgX</option>
+                <option value="neutral">Neutral</option>
+                <option value="reinhard">Reinhard</option>
+                <option value="cineon">Cineon</option>
+                <option value="linear">Linear</option>
+                <option value="none">None</option>
+              </select>
+            </label>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Render scale</span><output id="renderScaleOut">1.00×</output></span>
+              <input type="range" id="renderScale" min="0.5" max="2" step="0.05" value="1" />
+            </label>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Camera FOV</span><output id="cameraFovOut">45°</output></span>
+              <input type="range" id="cameraFov" min="20" max="100" step="1" value="45" />
+            </label>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Ambient light</span><output id="ambientOut">0.45</output></span>
+              <input type="range" id="ambientIntensity" min="0" max="3" step="0.05" value="0.45" />
+            </label>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Ground shadow</span><output id="groundShadowOut">0.30</output></span>
+              <input type="range" id="groundShadow" min="0" max="1" step="0.01" value="0.3" />
+            </label>
+
+            <label class="switch-row">
+              <span>Ground &amp; grid</span>
+              <input type="checkbox" id="toggleGrid" checked />
+              <i class="switch"></i>
+            </label>
+
+            <label class="switch-row">
+              <span>Auto rotate camera</span>
+              <input type="checkbox" id="toggleAutoRotate" />
+              <i class="switch"></i>
+            </label>
+          </section>
+
+          <section class="section">
+            <div class="section-title"><span>Atmosphere</span><span class="badge warm" id="fogBadge">Off</span></div>
+
+            <label class="switch-row">
+              <span>Fog / haze</span>
+              <input type="checkbox" id="fogEnabled" />
+              <i class="switch"></i>
+            </label>
+
+            <div class="color-row">
+              <span>Fog color</span>
+              <input type="color" id="fogColor" value="#c9d5e2" />
+            </div>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Fog strength</span><output id="fogStrengthOut">35%</output></span>
+              <input type="range" id="fogStrength" min="0" max="200" step="1" value="35" />
+            </label>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Fog distance</span><output id="fogDistanceOut">1.00×</output></span>
+              <input type="range" id="fogDistance" min="0.25" max="6" step="0.05" value="1" />
+            </label>
+
+            <p class="hint" id="fogHint">Density scales with the model, so the same strength works for any scene size.</p>
+          </section>
+
+          <section class="section" id="animSection" hidden>
+            <div class="section-title"><span>Animation</span><span class="badge" id="animBadge">0</span></div>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Clip</span></span>
+              <select id="animClip" class="select"></select>
+            </label>
+
+            <div class="btn-row">
+              <button class="btn subtle" id="btnAnimPlay">Play</button>
+              <button class="btn subtle" id="btnAnimStop">Stop</button>
+            </div>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Speed</span><output id="animSpeedOut">1.00×</output></span>
+              <input type="range" id="animSpeed" min="0.1" max="3" step="0.05" value="1" />
+            </label>
+          </section>
+
+          <section class="section">
+            <div class="section-title"><span>Status</span></div>
+            <div class="status-grid">
+              <div><span>HDRI</span><b id="statusEnv">Studio room</b></div>
+              <div><span>Shadows</span><b id="statusShadows">On</b></div>
+              <div><span>Fog</span><b id="statusFog">Off</b></div>
+              <div><span>Renderer</span><b id="statusRenderer">WebGL2</b></div>
+              <div><span>Pixel ratio</span><b id="statusDpr">1.0</b></div>
+              <div><span>Load time</span><b id="statusLoad">—</b></div>
+              <div><span>Draw calls</span><b id="statusDraw">—</b></div>
+              <div><span>Triangles</span><b id="statusTris">—</b></div>
+            </div>
+          </section>
+        </div>
+
+        <div class="tab-pane" id="tab-sun">
+          <section class="section">
+            <div class="section-title"><span>Directional light</span><span class="badge warm">Sun</span></div>
+
+            <div class="btn-row" id="sunPresets">
+              <button class="btn subtle" type="button" data-sun="dawn">Dawn</button>
+              <button class="btn subtle" type="button" data-sun="noon">Noon</button>
+              <button class="btn subtle" type="button" data-sun="sunset">Sunset</button>
+              <button class="btn subtle" type="button" data-sun="studio">Studio</button>
+            </div>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Azimuth</span><output id="sunAzimuthOut">45°</output></span>
+              <input type="range" id="sunAzimuth" min="0" max="360" step="1" value="45" />
+            </label>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Elevation</span><output id="sunElevationOut">42°</output></span>
+              <input type="range" id="sunElevation" min="0" max="90" step="1" value="42" />
+            </label>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Intensity</span><output id="sunIntensityOut">2.6</output></span>
+              <input type="range" id="sunIntensity" min="0" max="20" step="0.1" value="2.6" />
+            </label>
+
+            <div class="color-row">
+              <span>Color</span>
+              <input type="color" id="sunColor" value="#ffe3b8" />
+            </div>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Color temperature</span><output id="sunTempOut">5600K</output></span>
+              <input type="range" id="sunTemp" min="1500" max="12000" step="100" value="5600" />
+            </label>
+          </section>
+
+          <section class="section">
+            <div class="section-title"><span>Shadows</span></div>
+
+            <label class="switch-row">
+              <span>Cast shadows</span>
+              <input type="checkbox" id="sunShadows" checked />
+              <i class="switch"></i>
+            </label>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Quality</span></span>
+              <select id="sunQuality" class="select">
+                <option value="512">512 px — Fast</option>
+                <option value="1024">1024 px</option>
+                <option value="2048" selected>2048 px — Balanced</option>
+                <option value="4096">4096 px — Sharp</option>
+                <option value="8192">8192 px — Max</option>
+              </select>
+            </label>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Softness</span><output id="sunSoftnessOut">2.0</output></span>
+              <input type="range" id="sunSoftness" min="0" max="12" step="0.1" value="2" />
+            </label>
+
+            <p class="hint">Tip: elevation near 0° gives long dramatic shadows. High quality + softness uses more GPU.</p>
+          </section>
+        </div>
+
+        <div class="tab-pane" id="tab-materials">
+          <section class="section">
+            <div class="section-title">
+              <span>Model materials</span>
+              <span class="badge" id="matCount">0</span>
+            </div>
+            <div class="search-row">
+              <input type="search" id="matSearch" placeholder="Search materials…" autocomplete="off" />
+              <button class="btn subtle small icon-only" id="btnPickMaterial" title="Pick a material from the model">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3.2s5.6 6.1 5.6 10.1a5.6 5.6 0 1 1-11.2 0C6.4 9.3 12 3.2 12 3.2z"/></svg>
+              </button>
+              <button class="btn subtle small" id="btnRevertAll" title="Restore all original material values">Reset</button>
+            </div>
+            <div id="matToolbar" class="mat-toolbar" hidden></div>
+            <div id="pickedMaterials"></div>
+            <div id="materialEmpty" class="empty-small">Load a model to edit its materials.</div>
+            <div id="bakeNotice" class="empty-small" hidden>Baked preview is active — restore it in the Export tab to edit materials.</div>
+            <div id="materialList" class="material-list"></div>
+          </section>
+        </div>
+
+        <div class="tab-pane" id="tab-objects">
+          <section class="section">
+            <div class="section-title">
+              <span>Scene objects</span>
+              <span class="badge" id="objCount">0</span>
+            </div>
+            <div class="search-row">
+              <input type="search" id="objSearch" placeholder="Search objects…" autocomplete="off" />
+              <button class="btn subtle small icon-only" id="btnPickObject" title="Pick an object in the viewport">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 3l6 17 2.4-6.6L20 11z"/></svg>
+              </button>
+            </div>
+
+            <div class="seg-row" id="transformModes">
+              <button class="btn subtle small active" type="button" data-transform="translate">Move</button>
+              <button class="btn subtle small" type="button" data-transform="rotate">Rotate</button>
+              <button class="btn subtle small" type="button" data-transform="scale">Scale</button>
+            </div>
+            <p class="hint" id="objectHint">Select an object to show the transform gizmo. Drag the arrows to move it.</p>
+
+            <div id="objectEmpty" class="empty-small">Load a model to edit its objects.</div>
+            <div id="objectList" class="object-list"></div>
+          </section>
+
+          <section class="section" id="objectInspector" hidden>
+            <div class="section-title">
+              <span>Selected object</span>
+              <span class="badge" id="objSelectedName">—</span>
+            </div>
+
+            <div class="vec-group">
+              <div class="vec-title">Position</div>
+              <div class="vec-row" data-vec="position">
+                <label><span>X</span><input type="number" step="0.01" data-axis="x" /></label>
+                <label><span>Y</span><input type="number" step="0.01" data-axis="y" /></label>
+                <label><span>Z</span><input type="number" step="0.01" data-axis="z" /></label>
+              </div>
+            </div>
+
+            <div class="vec-group">
+              <div class="vec-title">Rotation (degrees)</div>
+              <div class="vec-row" data-vec="rotation">
+                <label><span>X</span><input type="number" step="1" data-axis="x" /></label>
+                <label><span>Y</span><input type="number" step="1" data-axis="y" /></label>
+                <label><span>Z</span><input type="number" step="1" data-axis="z" /></label>
+              </div>
+            </div>
+
+            <div class="vec-group">
+              <div class="vec-title">Scale</div>
+              <div class="vec-row" data-vec="scale">
+                <label><span>X</span><input type="number" step="0.01" data-axis="x" /></label>
+                <label><span>Y</span><input type="number" step="0.01" data-axis="y" /></label>
+                <label><span>Z</span><input type="number" step="0.01" data-axis="z" /></label>
+              </div>
+            </div>
+
+            <div class="btn-row">
+              <button class="btn subtle small" id="btnObjFocus">Focus</button>
+              <button class="btn subtle small" id="btnObjReset">Reset transform</button>
+            </div>
+            <button class="btn subtle full small danger" id="btnObjDelete">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13M10 11v5M14 11v5"/></svg>
+              Delete object
+            </button>
+            <p class="hint">Deleting removes the object from the scene and from the exported file. You can undo with Reset transform only for position/rotation/scale.</p>
+          </section>
+        </div>
+
+        <div class="tab-pane" id="tab-hotspots">
+          <section class="section">
+            <div class="section-title"><span>Hotspots</span><span class="badge warm" id="hsCount">0</span></div>
+            <button class="btn accent full" id="btnAddHotspot">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              Add hotspot
+            </button>
+            <p class="hint" id="hotspotHint">Click “Add hotspot”, then click a point on the model. Drag a marker to move it.</p>
+            <div id="hotspotEmpty" class="empty-small">No hotspots yet.</div>
+            <div id="hotspotEditor" class="hotspot-editor"></div>
+          </section>
+        </div>
+
+        <div class="tab-pane" id="tab-io">
+          <section class="section">
+            <div class="section-title"><span>Screenshot</span></div>
+            <div class="io-row">
+              <select id="shotScale" class="select">
+                <option value="1">1× native</option>
+                <option value="2" selected>2× (sharp)</option>
+                <option value="3">3×</option>
+                <option value="4">4× (print)</option>
+              </select>
+              <button class="btn accent" id="btnShot2">Capture PNG</button>
+            </div>
+            <p class="hint">Renders off-screen at the chosen scale — keeps your current camera and includes markers.</p>
+
+            <label class="switch-row">
+              <span>Transparent background</span>
+              <input type="checkbox" id="shotTransparent" />
+              <i class="switch"></i>
+            </label>
+          </section>
+
+          <section class="section">
+            <div class="section-title"><span>Lighting bake</span><span class="badge warm" id="bakeBadge">Off</span></div>
+
+            <div class="bake-warning" id="bakeWarning">
+              <b>Not a free quality upgrade.</b>
+              This is for distant views / weak mobile devices, not a final luxury presentation.
+              It converts lighting to vertex colors and materials to unlit. Glass/transmission materials are excluded automatically,
+              and large flat surfaces are subdivided first so gradients survive.
+            </div>
+
+            <button class="btn accent full" id="btnBake">Bake lighting preview</button>
+            <button class="btn subtle full" id="btnBakeRestore" hidden>Restore original materials</button>
+            <p class="hint" id="bakeHint">Bakes the current sun, sky and environment into vertex colors and turns materials unlit. Glass/transmission materials are excluded automatically; large flat surfaces are subdivided first. Preview it here before exporting.</p>
+          </section>
+
+          <section class="section">
+            <div class="section-title"><span>Project export</span></div>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Format</span></span>
+              <select id="exportFormat" class="select">
+                <option value="zip">Project folder (.zip, compressed)</option>
+                <option value="glb">GLB (binary, Meshopt compressed)</option>
+                <option value="gltf">glTF (JSON, embedded, uncompressed)</option>
+              </select>
+            </label>
+
+            <label class="ctrl">
+              <span class="ctrl-head"><span>Texture max size</span></span>
+              <select id="exportTextureSize" class="select">
+                <option value="0">Original</option>
+                <option value="2048">2048 px</option>
+                <option value="1024">1024 px — mobile</option>
+                <option value="512">512 px — light</option>
+              </select>
+            </label>
+
+            <label class="switch-row">
+              <span>Meshopt compression (recommended)</span>
+              <input type="checkbox" id="exportMeshopt" checked />
+              <i class="switch"></i>
+            </label>
+
+            <label class="switch-row">
+              <span>Include hotspots &amp; icons</span>
+              <input type="checkbox" id="exportHotspots" checked />
+              <i class="switch"></i>
+            </label>
+
+            <p class="hint" id="textureStatus">Textures: —</p>
+
+            <button class="btn accent full" id="btnExportProject">Export full project</button>
+            <p class="hint">ZIP is deflated when the browser supports it. GLB uses EXT_meshopt_compression by default. Hotspot markers are exported as static planes facing the export camera — external glTF viewers will not billboard them (they read <code>extras.hotspot.alwaysFaceCamera</code>).</p>
+          </section>
+
+          <section class="section">
+            <div class="section-title"><span>Scene settings</span></div>
+            <div class="btn-row">
+              <button class="btn subtle" id="btnSave2">Save JSON</button>
+              <button class="btn subtle" id="btnImport2">Load JSON</button>
+            </div>
+            <p class="hint">Stores camera, HDRI transform, sun, material tweaks and hotspots. The HDRI/model files themselves are not embedded (path only). Uploaded texture overrides and popup images are embedded.</p>
+          </section>
+
+          <section class="section">
+            <div class="section-title"><span>Shortcuts</span></div>
+            <div class="shortcut-list">
+              <div><kbd>Esc</kbd><span>Cancel placement / close popup</span></div>
+              <div><kbd>Del</kbd><span>Delete selected hotspot</span></div>
+              <div><kbd>F</kbd><span>Frame model</span></div>
+              <div><kbd>G</kbd><span>Toggle ground &amp; grid</span></div>
+              <div><kbd>R</kbd><span>Toggle auto-rotate</span></div>
+              <div><kbd>Space</kbd><span>Play / pause animation</span></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </aside>
+
+    <aside id="hotspotDock">
+      <div class="dock-head">
+        <div>
+          <strong>Hotspots</strong>
+          <span id="dockCount">0</span>
+        </div>
+        <button class="btn icon-only small" id="btnAddHotspot2" title="Add hotspot">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
+      <div id="hotspotDockList" class="dock-list"></div>
+      <div id="dockEmpty" class="empty-small">Markers you add will appear here.</div>
+    </aside>
+
+    <div id="presetBar">
+      <span class="preset-label">View</span>
+      <button class="chip" data-view="front">Front</button>
+      <button class="chip" data-view="back">Back</button>
+      <button class="chip" data-view="left">Left</button>
+      <button class="chip" data-view="right">Right</button>
+      <button class="chip" data-view="top">Top</button>
+      <button class="chip" data-view="bottom">Bottom</button>
+      <span class="preset-sep"></span>
+      <button class="chip accent" data-view="iso" id="btnFrame">Iso</button>
+      <button class="chip" id="btnFrameFit" title="Fit model in view">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/></svg>
+        Fit
+      </button>
+    </div>
+
+    <div id="emptyHint">
+      <div class="eh-icon">
+        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M32 6l20 11.5v23L32 52 12 40.5v-23z"/><path d="M32 29.5l20-11.7M32 29.5L12 17.8M32 29.5V52"/></svg>
+      </div>
+      <strong>Drop a GLB or GLTF to start</strong>
+      <span>HDRI, materials, hotspots and exports — all local in your browser.</span>
+    </div>
+
+    <div id="placementBanner" hidden>
+      <span class="pulse"></span>
+      <span>Click on the model to place a hotspot</span>
+      <button class="btn tiny" id="btnCancelPlacing">Cancel · Esc</button>
+    </div>
+
+    <div id="popupOverlay" hidden>
+      <div class="popup-card" role="dialog" aria-modal="true">
+        <button class="popup-close" id="btnClosePopup" title="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+        <img id="popupImage" alt="" hidden />
+        <h3 id="popupTitle">Title</h3>
+        <p id="popupText"></p>
+        <div class="popup-actions"><button class="btn accent" id="btnPopupOk">Close</button></div>
+      </div>
+    </div>
+
+    <div id="busyOverlay" hidden>
+      <div class="busy-card">
+        <div class="spinner"></div>
+        <span id="busyText">Working…</span>
+      </div>
+    </div>
+
+    <div id="dropOverlay" hidden>
+      <div class="drop-card">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M4 15v3.5A2.5 2.5 0 006.5 21h11a2.5 2.5 0 002.5-2.5V15"/></svg>
+        <strong>Drop files</strong>
+        <span>GLB/GLTF · HDRI (.hdr/.exr) · settings (.json)</span>
+      </div>
+    </div>
+
+    <div id="toasts"></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

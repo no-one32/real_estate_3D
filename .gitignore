@@ -1,0 +1,7 @@
+node_modules/
+dist/
+dev.log
+*.local
+# old 154 MB model: too big for GitHub (100 MB limit) and no longer used (the viewer loads FINAL.glb)
+public/models/1 A TEST V2.glb
+backup-viewer-before-hotspots/
