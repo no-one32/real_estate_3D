@@ -195,8 +195,8 @@
     transition: opacity .3s ease, transform .3s ease;
   }
   #hcard.open { opacity: 1; transform: none; pointer-events: auto; }
-  .hc-img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 18px 18px 0 0; background: #e7eef6; }
-  .hc-body { padding: 18px 20px 22px; }
+  .hc-img { display: block; width: 100%; aspect-ratio: 2 / 1; object-fit: cover; border-radius: 18px 18px 0 0; background: #e7eef6; }
+  .hc-body { padding: 16px 20px 18px; }
   #hcard.has-img .hc-x { background: rgba(255, 255, 255, .92); box-shadow: 0 2px 8px rgba(0, 0, 0, .2); }
   #hcard.has-img .hc-head { margin-left: 0; }
   .hc-facts { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
@@ -210,8 +210,12 @@
   #hcard p { margin: 0; font-size: 15px; line-height: 1.9; color: #3f4f66; }
   #hcard p + p { margin-top: 10px; }
   @media (max-width: 520px) {
-    #hcard { top: auto; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateY(20px); max-height: 58vh; }
-    .hc-img { aspect-ratio: 2 / 1; }
+    #hcard { top: auto; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateY(20px); max-height: 66vh; }
+    .hc-img { aspect-ratio: 3 / 1; }
+    .hc-body { padding: 12px 16px 14px; }
+    #hcard p { font-size: 14px; line-height: 1.75; }
+    .hc-facts { margin-top: 10px; gap: 6px; }
+    .hc-facts li { font-size: 12px; padding: 5px 9px; }
   }
 
   /* ---- places list ---- */
@@ -272,6 +276,6 @@
   }
 }
 </script>
-<script type="module" src="./app.js?v=13"></script>
+<script type="module" src="./app.js?v=15"></script>
 </body>
 </html>
