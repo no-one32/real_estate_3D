@@ -29,6 +29,8 @@ const ICONS = {
  * text: one or more paragraphs of description (Arabic).
  * view: how far the camera stops from the place (cm) when you click it.
  * far:  true = only the info opens, the camera stays where it is (places outside the project).
+ * minElev: lowest camera angle above the ground (degrees) when turning around the place (default 28°);
+ *       higher where a tall building stands right next to the place (the school next to the playground).
  * snap: true = the height is taken from the ground under the point when the model loads.
  */
 export const HOTSPOTS = [
@@ -44,7 +46,7 @@ export const HOTSPOTS = [
         'في داخله مساحات للأنشطة واللقاءات، ويطل على الحديقة المركزية على مسافة مشي من الفلل.',
       ],
       facts: ['ملاعب على السطح', 'بجانب المسجد', 'يطل على الحديقة'] },
-    { id: 'park', icon: 'park', title: 'الحديقة', at: [17200, 15, -3000], view: 6000,
+    { id: 'park', icon: 'park', title: 'الحديقة', at: [17960, 15, -1950], view: 6000,
       text: [
         'الرئة الخضراء للمشروع بين المسجد والمدرسة: ممرات متعرّجة للمشي ومسطحات عشبية وأشجار نخيل.',
         'مكان آمن للأطفال وللجلوس مع العائلة، بعيداً عن حركة السيارات، ويصل إليه الجميع خلال دقائق مشياً.',
@@ -56,7 +58,7 @@ export const HOTSPOTS = [
         'يذهب إليها الأطفال مشياً من الفلل دون عبور الطريق الرئيسي، وبجانبها ملعب الأطفال والحديقة.',
       ],
       facts: ['داخل المشروع', 'ساحة واسعة', 'بجانب ملعب الأطفال', 'بعيدة عن الطريق الرئيسي'] },
-    { id: 'play', icon: 'play', title: 'ملعب الأطفال', at: [11000, 28, 4200], view: 3200,
+    { id: 'play', icon: 'play', title: 'ملعب الأطفال', at: [11350, 28, 4160], view: 3600, minElev: 50,
       text: [
         'منطقة ألعاب مسوّرة بأرضية رملية ناعمة، فيها زحاليق وألعاب تسلّق وحبال.',
         'تحيط بها الأشجار والعشب، بجانب المدرسة وعلى مسافة قصيرة من الفلل، تحت نظر الأهل.',
@@ -74,19 +76,19 @@ export const HOTSPOTS = [
         'تطل عليها الفلل القريبة، ويتنزه السكان على ضفتها في الصباح والمساء.',
       ],
       facts: ['على الجانب الشرقي', 'إطلالة مفتوحة', 'على طول الطريق الرئيسي'] },
-    { id: 'villas-north', icon: 'home', title: 'فلل قرب المسجد', at: [9000, 28, -16500], view: 9000, villa: true,
+    { id: 'villas-north', icon: 'home', title: 'فلل قرب المسجد', at: [10600, 1060, -15800], view: 9000, villa: true,
       text: [
         'فلل في شوارع داخلية هادئة قريبة من المسجد والمركز الرياضي، والحديقة والمدرسة على بُعد دقائق.',
         'ثلاثة نماذج من طابقين مع سطح: 200 م² و4 غرف نوم، 250 م² و5 غرف، 300 م² و6 غرف، ولكل نموذج تصميمان للواجهة (A وB).',
       ],
       facts: ['قريبة من المسجد', 'شوارع داخلية', 'فلل بحدائق خاصة'] },
-    { id: 'villas-west', icon: 'home', title: 'فلل الشوارع الهادئة', at: [-5000, 28, -6000], view: 10000, villa: true,
+    { id: 'villas-west', icon: 'home', title: 'فلل الشوارع الهادئة', at: [-3400, 1060, -5800], view: 9000, villa: true,
       text: [
         'فلل في شوارع هادئة بعيدة عن الطريق الرئيسي، للعائلات التي تبحث عن الهدوء والخصوصية.',
         'ثلاثة نماذج من طابقين مع سطح: 200 م² و4 غرف نوم، 250 م² و5 غرف، 300 م² و6 غرف، ولكل نموذج تصميمان للواجهة (A وB).',
       ],
       facts: ['بعيدة عن الطريق الرئيسي', 'هدوء وخصوصية', 'شوارع مشجّرة'] },
-    { id: 'villas-south', icon: 'home', title: 'فلل قرب المدرسة', at: [5000, 17, 11000], view: 10000, villa: true,
+    { id: 'villas-south', icon: 'home', title: 'فلل قرب المدرسة', at: [8400, 1060, 11800], view: 9000, villa: true,
       text: [
         'صفوف منحنية قرب المدرسة وملعب الأطفال: يذهب الأطفال إلى المدرسة مشياً دون عبور الطريق الرئيسي.',
         'ثلاثة نماذج من طابقين مع سطح: 200 م² و4 غرف نوم، 250 م² و5 غرف، 300 م² و6 غرف، ولكل نموذج تصميمان للواجهة (A وB).',
@@ -172,12 +174,15 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         maxDistance: controls.maxDistance,
         maxPolarAngle: controls.maxPolarAngle,
     };
-    function lockOn(dist) {
+    function lockOn(dist, minElev = 28) {
         controls.enablePan = false;
-        controls.minDistance = Math.max(0.5, dist * 0.25); /* close enough to see the details */
+        controls.minDistance = Math.max(0.5, dist * 0.3); /* close enough to see the details */
         controls.maxDistance = dist * 1.7;
-        /* stay above the street: from 10° above the ground up to straight down */
-        controls.maxPolarAngle = Math.min(free.maxPolarAngle, THREE.MathUtils.degToRad(80));
+        /*
+         * Turning around the place keeps the camera at least 28° above the ground (from there up to
+         * straight down): lower, it went down between the villas around the place while rotating.
+         */
+        controls.maxPolarAngle = Math.min(free.maxPolarAngle, THREE.MathUtils.degToRad(90 - minElev));
     }
     function unlock() {
         Object.assign(controls, free);
@@ -203,7 +208,7 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         const dir = camera.position.clone().sub(controls.target).setY(0);
         if (dir.lengthSq() < 1e-6) dir.set(1, 0, 1);
         dir.normalize();
-        const elev = THREE.MathUtils.degToRad(35);
+        const elev = THREE.MathUtils.degToRad(Math.max(35, (h.minElev ?? 28) + 5));
         const pos = target.clone()
             .addScaledVector(dir, Math.cos(elev) * dist)
             .add(new THREE.Vector3(0, Math.sin(elev) * dist, 0));
@@ -218,7 +223,7 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         if (!h.far) {
             const v = viewFor(h);
             unlock();
-            flyTo(v.pos, v.target, 1600, () => lockOn(v.dist));
+            flyTo(v.pos, v.target, 1600, () => lockOn(v.dist, h.minElev));
         } else if (wasOpen) {
             goHome();
         }
