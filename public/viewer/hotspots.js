@@ -144,6 +144,8 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
     /* ---------- camera flight ---------- */
     let flight = null;
     const _sph = new THREE.Spherical();
+    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+    const easeInOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
     const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
     /*
@@ -156,9 +158,17 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         minDistance: controls.minDistance,
         maxDistance: controls.maxDistance,
         maxPolarAngle: controls.maxPolarAngle,
+        /* the calmer handling (app.js) is only for the overall view */
+        rotateSpeed: controls.rotateSpeed,
+        zoomSpeed: controls.zoomSpeed,
+        dampingFactor: controls.dampingFactor,
     };
     function lockOn(dist, minElev = 28) {
         controls.enablePan = false;
+        /* close to a place: the earlier handling, which felt right there */
+        controls.rotateSpeed = 0.75;
+        controls.zoomSpeed = 0.9;
+        controls.dampingFactor = 0.18;
         controls.minDistance = Math.max(0.5, dist * 0.3); /* close enough to see the details */
         controls.maxDistance = dist * 1.7;
         /*
@@ -217,7 +227,7 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         if (!h.far) {
             const v = viewFor(h);
             unlock();
-            flyTo(v.pos, v.target, 2300, () => lockOn(v.dist, h.minElev), 0.6);
+            flyTo(v.pos, v.target, 2600, () => lockOn(v.dist, h.minElev), 0.5);
         } else if (wasOpen) {
             goHome();
         }
@@ -286,17 +296,19 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         if (flight) {
             const k = Math.min(1, (performance.now() - flight.start) / flight.ms);
             const e = ease(k);
-            controls.target.lerpVectors(flight.t0, flight.t1, e);
+            controls.target.lerpVectors(flight.t0, flight.t1, flight.spin ? easeOutCubic(Math.min(1, k / 0.8)) : e);
             if (flight.spin) {
                 /*
-                 * Approach first, then a short turn around the place while settling (instead of going
-                 * straight to the point): the last ~45% of the flight sweeps `spin` radians.
+                 * Approach, then a gentle turn around the place as the camera arrives: always in one
+                 * direction (the old version turned one way then back), starting slowly once most of the
+                 * approach is done and slowing down to a soft stop.
                  */
-                const late = THREE.MathUtils.smoothstep(k, 0.45, 1);
+                const turn = easeInOutSine(THREE.MathUtils.clamp((k - 0.3) / 0.7, 0, 1));
                 const { s0, s1 } = flight;
-                _sph.radius = s0.radius * Math.pow(s1.radius / s0.radius, e);
-                _sph.phi = s0.phi + (s1.phi - s0.phi) * e;
-                _sph.theta = s0.theta + (flight.dTheta - flight.spin) * e + flight.spin * late;
+                const ap = easeOutCubic(Math.min(1, k / 0.8)); /* approach finishes at 80% */
+                _sph.radius = s0.radius * Math.pow(s1.radius / s0.radius, ap);
+                _sph.phi = s0.phi + (s1.phi - s0.phi) * ap;
+                _sph.theta = s0.theta + flight.dTheta * ap + flight.spin * turn;
                 camera.position.setFromSpherical(_sph).add(controls.target);
             } else {
                 camera.position.lerpVectors(flight.p0, flight.p1, e);

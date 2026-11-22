@@ -5,7 +5,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { initHotspots } from './hotspots.js?v=13';
+import { initHotspots } from './hotspots.js?v=14';
 
 /* ------------------------------------------------------------------ *
  *  Device profile — same agreed settings as the previous viewer
@@ -86,7 +86,7 @@ const scene = new THREE.Scene();
 
 const HORIZON = 0xc2d2e2;
 /* light haze: barely there close up, stronger as you move away (distance-based) */
-scene.fog = new THREE.FogExp2(HORIZON, 0.0009);
+scene.fog = new THREE.FogExp2(HORIZON, 0.0028);
 
 function makeSkyTexture() {
     const canvas = document.createElement('canvas');
@@ -120,7 +120,7 @@ controls.enableDamping = true;
  * How long the view keeps gliding after the mouse / finger is released. 0.07 glided ~14× the last
  * movement (it went too far past where you stopped); 0.18 keeps a short, soft glide (~5×).
  */
-controls.dampingFactor = 0.16;
+controls.dampingFactor = 0.18;
 /* calmer, steadier handling (like the reference site): less turn / zoom per mouse movement */
 controls.rotateSpeed = 0.42;
 controls.zoomSpeed = 0.6;
@@ -314,6 +314,9 @@ loader.setMeshoptDecoder(MeshoptDecoder);
 /* FINAL.glb is Draco-compressed: decoder files live in /draco/ */
 const draco = new DRACOLoader();
 draco.setDecoderPath('/draco/');
+/* unpack the meshes on more CPU cores at once (default 4) */
+draco.setWorkerLimit(Math.min(8, Math.max(2, (navigator.hardwareConcurrency || 4) - 1)));
+draco.preload();
 loader.setDRACOLoader(draco);
 
 const TEXTURE_SLOTS = [
@@ -325,6 +328,19 @@ const TEXTURE_SLOTS = [
 ];
 
 const MODEL_URL = params.get('model') || '/models/FINAL.glb';
+
+/* after the download: creep from 90% to 99% while the model is unpacked, with a message, so it never looks stuck */
+let unpackTimer = null;
+function startUnpacking() {
+    if (unpackTimer) return;
+    let p = 90;
+    pctEl.textContent = '90% · جارٍ تجهيز المشهد…';
+    unpackTimer = setInterval(() => {
+        p += (99 - p) * 0.12;
+        barEl.style.width = p.toFixed(1) + '%';
+        pctEl.textContent = Math.floor(p) + '% · جارٍ تجهيز المشهد…';
+    }, 250);
+}
 const loadStart = performance.now();
 let hotspots = null;
 
@@ -485,6 +501,7 @@ loader.load(
         applySun(SUN.t, true);
 
         const loadMs = Math.round(performance.now() - loadStart);
+        startUnpacking(); /* in case no progress event reported the end of the download */
 
         /* diagnostics + first frame */
         window.__viewer = {
@@ -508,6 +525,7 @@ loader.load(
         const markReady = () => {
             if (ready) return;
             ready = true;
+            clearInterval(unpackTimer);
             barEl.style.width = '100%';
             pctEl.textContent = '100%';
             document.body.classList.add('ready');
@@ -525,11 +543,17 @@ loader.load(
          * The host sends the model compressed, so the browser often gets no total size and only the
          * MB counter moved (0.1, 0.2 …). Fall back to the known size of the file to show a percentage.
          */
+        if (unpackTimer) return;
         const total = (xhr && xhr.total) || (MODEL_URL.endsWith('FINAL.glb') ? 14049276 : 0);
         if (xhr && total) {
-            const pct = Math.min(99, Math.round((xhr.loaded / total) * 100));
+            /* the download fills the bar to 90%; the last 10% is unpacking the model (can take a few seconds) */
+            const pct = Math.min(90, Math.round((xhr.loaded / total) * 90));
             barEl.style.width = pct + '%';
             pctEl.textContent = pct + '%';
+            if (xhr.loaded >= total && !window.__dlDone) {
+                window.__dlDone = performance.now();
+                startUnpacking();
+            }
         } else if (xhr && xhr.loaded) {
             const mb = (xhr.loaded / 1048576).toFixed(1);
             pctEl.textContent = mb + ' MB';
