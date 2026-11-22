@@ -5,7 +5,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { initHotspots } from './hotspots.js?v=16';
+import { initHotspots } from './hotspots.js?v=18';
 
 /* ------------------------------------------------------------------ *
  *  Device profile — same agreed settings as the previous viewer
@@ -72,8 +72,9 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
  * Neutral (Khronos PBR Neutral) instead of AgX: AgX greys out and darkens the colours,
  * Neutral keeps the real colours of the materials (white walls stay white, grass stays green).
  */
-renderer.toneMapping = THREE.NeutralToneMapping;
-renderer.toneMappingExposure = 1.25; /* brighter, as asked */
+/* Same look as Model Studio (the reference he approved): ACES, exposure 1. */
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = ENABLE_SHADOWS;
 /* PCFSoft costs extra taps; the phone gets the cheaper PCF filter. */
 renderer.shadowMap.type = IS_MOBILE ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
@@ -84,63 +85,14 @@ container.appendChild(renderer.domElement);
  * ------------------------------------------------------------------ */
 const scene = new THREE.Scene();
 
-const HORIZON = 0xc2d2e2;
+const HORIZON = 0xc9d5e2;
 /*
- * Fog = two layers mixed together:
- *  - a distance haze (the city far away fades into the sky)
- *  - a soft ground mist lying over the whole site (thick at ground level, thinning out with height),
- *    so the fog is also seen in the middle of the view, not only at the edges. It gets lighter when
- *    the camera is close to a place and builds up as you zoom out.
- * Values are in scene units (the project is normalised to a ~100 unit radius, buildings ~8 high).
+ * Light distance haze only, copied from Model Studio (fog strength 4 %, distance 1.45×):
+ * ≈ 1.2 % haze at the edge of the model. The project is normalised to a 100 unit radius,
+ * so density = sqrt(-ln(1 - 0.0117)) / 100. No ground mist any more.
  */
-const FOG = {
-    density: 0.002,    /* distance haze */
-    ground: 0.32,      /* ground mist strength (0 = none) */
-    height: 2.4,       /* how high the mist rises */
-    near: 110,         /* how fast the mist builds up with camera distance (bigger = lighter at the start view) */
-};
+const FOG = { density: 0.00109 };
 scene.fog = new THREE.FogExp2(HORIZON, FOG.density);
-
-THREE.ShaderChunk.fog_pars_vertex = `
-#ifdef USE_FOG
-    varying float vFogDepth;
-    varying vec3 vFogWorld;
-#endif`;
-THREE.ShaderChunk.fog_vertex = `
-#ifdef USE_FOG
-    vFogDepth = - mvPosition.z;
-    vec4 fogWorld = vec4( transformed, 1.0 );
-    #ifdef USE_INSTANCING
-        fogWorld = instanceMatrix * fogWorld;
-    #endif
-    vFogWorld = ( modelMatrix * fogWorld ).xyz;
-#endif`;
-THREE.ShaderChunk.fog_pars_fragment = `
-#ifdef USE_FOG
-    uniform vec3 fogColor;
-    varying float vFogDepth;
-    varying vec3 vFogWorld;
-    #ifdef FOG_EXP2
-        uniform float fogDensity;
-    #else
-        uniform float fogNear;
-        uniform float fogFar;
-    #endif
-#endif`;
-THREE.ShaderChunk.fog_fragment = `
-#ifdef USE_FOG
-    float fogDist = length( vFogWorld - cameraPosition );
-    #ifdef FOG_EXP2
-        float fogFactor = 1.0 - exp( - fogDensity * fogDensity * fogDist * fogDist );
-    #else
-        float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
-    #endif
-    float mistH = max( vFogWorld.y, 0.0 );
-    float mist = ${FOG.ground.toFixed(3)} * exp( - mistH / ${FOG.height.toFixed(3)} )
-               * ( 1.0 - exp( - fogDist / ${FOG.near.toFixed(1)} ) );
-    fogFactor = clamp( fogFactor + mist * ( 1.0 - fogFactor ), 0.0, 1.0 );
-    gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );
-#endif`;
 
 function makeSkyTexture() {
     const canvas = document.createElement('canvas');
@@ -202,9 +154,7 @@ applyHomeView();
  * ------------------------------------------------------------------ */
 const SUNSET_COLOR = new THREE.Color(0xffa463);  /* warm but not orange-red */
 const GOLDEN_COLOR = new THREE.Color(0xffd6a0);
-const NOON_COLOR = new THREE.Color(0xfff7ea);
-const DUSK_FOG = new THREE.Color(0xe9b98d);
-const DAY_FOG = new THREE.Color(0xc2d2e2);
+const NOON_COLOR = new THREE.Color(0xffe3b8);  /* Model Studio sun colour */
 
 const SUN = {
     t: 0.38,                                    /* 0 = sunrise, 1 = sunset */
@@ -237,7 +187,7 @@ scene.add(sun.target);
 
 /* Cool sky bounce, kept low so the sun keeps the contrast. */
 /* sky / ground fill: enough that the sides away from the sun are not black */
-const hemi = new THREE.HemisphereLight(0xdfeaf7, 0x8a7f70, 0.75);
+const hemi = new THREE.HemisphereLight(0xcfe0ff, 0x2b241c, 0.45);  /* Model Studio values */
 scene.add(hemi);
 
 const pmrem = new THREE.PMREMGenerator(renderer);
@@ -245,14 +195,14 @@ pmrem.compileEquirectangularShader();
 
 const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
 scene.environment = envRT.texture;
-scene.environmentIntensity = 0.8;
+scene.environmentIntensity = 0.85;
 
 new RGBELoader().load(
     './sky.hdr',
     (hdr) => {
         hdr.mapping = THREE.EquirectangularReflectionMapping;
         scene.background = hdr;
-        scene.backgroundBlurriness = 0.08;
+        scene.backgroundBlurriness = 0;
         scene.backgroundIntensity = 1.0;
         scene.environment = pmrem.fromEquirectangular(hdr).texture;
         envRT.dispose();
@@ -344,12 +294,11 @@ function applySun(t, forceShadow) {
     else _sunColor.copy(GOLDEN_COLOR).lerp(NOON_COLOR, (k - 0.5) / 0.5);
     sun.color.copy(_sunColor);
 
-    /* softer swing between morning and noon: morning / evening stay readable, noon is not burnt */
-    sun.intensity = 2.6 + 1.6 * Math.pow(k, 0.75);
-    hemi.intensity = 0.6 + 0.25 * k;
-    scene.environmentIntensity = 0.75 + 0.3 * k;
-    scene.backgroundIntensity = 0.6 + 0.4 * k;
-    scene.fog.color.copy(DUSK_FOG).lerp(DAY_FOG, Math.min(1, k * 1.7));
+    /* light intensities = Model Studio defaults (sun 2.6, sky fill 0.45, environment 0.85) */
+    sun.intensity = 2.6;
+    hemi.intensity = 0.45;
+    scene.environmentIntensity = 0.85;
+    scene.backgroundIntensity = 1.0;
 
     updateShadowFrustum(true);
 

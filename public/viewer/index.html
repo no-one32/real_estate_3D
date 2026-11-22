@@ -174,13 +174,13 @@
   /* behind the houses (seen from the street): fade out and let clicks pass through to the 3D view */
   .hs { transition: opacity .25s ease; }
   .hs.hs-hide { opacity: 0; pointer-events: none; }
-  .hs-stem { width: 2px; height: 22px; background: linear-gradient(rgba(255,255,255,.95), rgba(255,255,255,0)); }
-  .hs-stem::after { content: ""; display: block; width: 8px; height: 8px; margin: 18px 0 0 -3px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(59,125,216,.45); }
+  /* solid stem down to a dot sitting exactly on the place, so the pin looks planted (not floating) */
+  .hs-stem { position: relative; width: 2px; height: 22px; background: #fff; box-shadow: 0 0 2px rgba(8, 20, 40, .45); }
+  .hs-stem::after { content: ""; position: absolute; left: 50%; bottom: 0; width: 8px; height: 8px; transform: translate(-50%, 50%); border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(59,125,216,.45), 0 1px 3px rgba(8, 20, 40, .4); }
   @media (max-width: 520px) {
     .hs-pin svg { width: 26px; height: 26px; padding: 5px; }
     .hs-pin { font-size: 12px; }
     .hs-stem { height: 16px; }
-    .hs-stem::after { margin-top: 12px; }
   }
 
   /* ---- info panel of the clicked place (left side) ---- */
@@ -272,6 +272,6 @@
   }
 }
 </script>
-<script type="module" src="./app.js?v=27"></script>
+<script type="module" src="./app.js?v=30"></script>
 </body>
 </html>

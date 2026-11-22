@@ -144,8 +144,6 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
     /* ---------- camera flight ---------- */
     let flight = null;
     const _sph = new THREE.Spherical();
-    const _c = new THREE.Vector3();
-    const _side = new THREE.Vector3();
     const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
     const easeInOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
     const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -183,7 +181,7 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         Object.assign(controls, free);
     }
 
-    /* spin: how far (radians) the camera swings to the side of the place before turning back onto it */
+    /* spin: how far (radians) the camera turns around the place at the end of the flight (one way) */
     function flyTo(pos, target, ms = 1600, onDone = null, spin = 0) {
         /* drop the rotation still gliding from the last drag, so it does not carry on after the flight */
         const damp = controls.enableDamping;
@@ -229,7 +227,7 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         if (!h.far) {
             const v = viewFor(h);
             unlock();
-            flyTo(v.pos, v.target, 2600, () => lockOn(v.dist, h.minElev), 0.18);
+            flyTo(v.pos, v.target, 3400, () => lockOn(v.dist, h.minElev), 0.65);
         } else if (wasOpen) {
             goHome();
         }
@@ -300,26 +298,21 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
             const e = ease(k);
             if (flight.spin) {
                 /*
-                 * Click on a pin: the camera flies in towards a spot slightly to the side of the place
-                 * (looking a little beside it), then at the end it turns back around onto the place
-                 * with a small rotation and stops with the place in the centre.
-                 *   a: the approach (0 -> 1 by 75% of the flight)
-                 *   b: the final turn back onto the place (from 55% to the end)
-                 * (a - b) rises then falls back to 0: the side offset is gone when the flight ends.
+                 * Click on a pin: the camera flies in to the place, then turns around it
+                 * (~37°, always the same way) while keeping the place in the centre, and slows down to a
+                 * soft stop. The old version swung out and came back to the same angle, so it looked
+                 * like there was no rotation at the end.
+                 *   a:    the approach (done at 60% of the flight, slowing down)
+                 *   turn: the rotation around the place (from 40% to the end, soft start and stop)
                  */
-                const a = ease(Math.min(1, k / 0.75));
-                const b = easeInOutSine(THREE.MathUtils.clamp((k - 0.55) / 0.45, 0, 1));
-                const side = a - b;
+                const a = easeOutCubic(Math.min(1, k / 0.6));
+                const turn = easeInOutSine(THREE.MathUtils.clamp((k - 0.4) / 0.6, 0, 1));
                 const { s0, s1 } = flight;
-                _c.lerpVectors(flight.t0, flight.t1, a);
+                controls.target.lerpVectors(flight.t0, flight.t1, a);
                 _sph.radius = s0.radius * Math.pow(s1.radius / s0.radius, a);
                 _sph.phi = s0.phi + (s1.phi - s0.phi) * a;
-                _sph.theta = s0.theta + flight.dTheta * a + flight.spin * side;
-                camera.position.setFromSpherical(_sph).add(_c);
-                /* look a little beside the place, in the direction the camera is offset, then back onto it */
-                _side.set(Math.cos(_sph.theta), 0, -Math.sin(_sph.theta))
-                    .multiplyScalar(_sph.radius * 0.1 * side * Math.sign(flight.spin));
-                controls.target.copy(_c).add(_side);
+                _sph.theta = s0.theta + flight.dTheta * a + flight.spin * turn;
+                camera.position.setFromSpherical(_sph).add(controls.target);
             } else {
                 controls.target.lerpVectors(flight.t0, flight.t1, e);
                 camera.position.lerpVectors(flight.p0, flight.p1, e);
@@ -333,6 +326,12 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
                 controls.update();
             }
         }
+        /*
+         * The camera matrix is only refreshed inside renderer.render(), which runs after this. Without
+         * this line the pins were placed with the previous frame's camera, so they lagged behind the
+         * model and seemed to float / slide over the buildings while the camera moved.
+         */
+        camera.updateMatrixWorld();
         const w = renderer.domElement.clientWidth;
         const hgt = renderer.domElement.clientHeight;
         const camDist = camera.position.distanceTo(controls.target);
@@ -373,7 +372,7 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
                 }
             }
             it.el.classList.toggle('hs-hide', !seen);
-            it.el.style.transform = `translate(${((v.x + 1) / 2) * w}px, ${((1 - v.y) / 2) * hgt}px)`;
+            it.el.style.transform = `translate3d(${Math.round(((v.x + 1) / 2) * w)}px, ${Math.round(((1 - v.y) / 2) * hgt)}px, 0)`;
             it.el.style.zIndex = String(1000 - Math.round(v.z * 500));
         }
     }
