@@ -29,7 +29,7 @@ const ICONS = {
  * text: one or more paragraphs of description (Arabic).
  * view: how far the camera stops from the place (cm) when you click it.
  * far:  true = only the info opens, the camera stays where it is (places outside the project).
- * minElev: lowest camera angle above the ground (degrees) when turning around the place (default 28°);
+ * minElev: lowest camera angle above the ground (degrees) when turning around the place (default 20°);
  *       higher where a tall building stands right next to the place (the school next to the playground).
  * snap: true = the height is taken from the ground under the point when the model loads.
  */
@@ -117,15 +117,27 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         return { h, el, world: toWorld(h.at) };
     });
 
-    /* far places: put the pin on the ground under them (the terrain is not flat) */
+    /*
+     * Stick every pin onto the real surface under it (roof, dome, ground). A pin anchored even a little
+     * in the air (e.g. above a street between two villas) shifts against the houses behind it whenever
+     * the camera turns, so it looked like it moved by itself. The ray starts 3 m above the given point
+     * (so a point slightly inside a roof still lands on top of it); far places search from the sky.
+     */
     const down = new THREE.Raycaster();
-    for (const it of items) {
-        if (!it.h.snap) continue;
-        const top = toWorld([it.h.at[0], 1e6, it.h.at[2]]);
-        down.set(top, new THREE.Vector3(0, -1, 0));
+    const DOWN = new THREE.Vector3(0, -1, 0);
+    /* one pin per idle moment: a ray through the whole model is heavy, doing all at once froze phones */
+    const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 60));
+    let snapIndex = 0;
+    const snapNext = () => {
+        const it = items[snapIndex++];
+        if (!it) return;
+        const startY = it.h.snap ? 1e6 : it.h.at[1] + 300;
+        down.set(toWorld([it.h.at[0], startY, it.h.at[2]]), DOWN);
         const hit = down.intersectObject(root, true)[0];
         if (hit) it.world.copy(hit.point);
-    }
+        idle(snapNext);
+    };
+    idle(snapNext);
 
     /* ---------- places list (like the Novoross side list) ---------- */
     if (list) {
@@ -163,17 +175,18 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         zoomSpeed: controls.zoomSpeed,
         dampingFactor: controls.dampingFactor,
     };
-    function lockOn(dist, minElev = 28) {
+    function lockOn(dist, minElev = DEFAULT_MIN_ELEV) {
         controls.enablePan = false;
         /* close to a place: the earlier handling, which felt right there */
         controls.rotateSpeed = 0.75;
         controls.zoomSpeed = 0.9;
         controls.dampingFactor = 0.18;
-        controls.minDistance = Math.max(0.5, dist * 0.3); /* close enough to see the details */
+        /* not closer than half the arrival distance: seen this low, closer would go between the villas */
+        controls.minDistance = Math.max(0.5, dist * 0.5);
         controls.maxDistance = dist * 1.7;
         /*
-         * Turning around the place keeps the camera at least 28° above the ground (from there up to
-         * straight down): lower, it went down between the villas around the place while rotating.
+         * Turning around the place keeps the camera at least `minElev` above the ground (20° by default,
+         * from there up to straight down). Together with minDistance it stays above the roofs.
          */
         controls.maxPolarAngle = Math.min(free.maxPolarAngle, THREE.MathUtils.degToRad(90 - minElev));
     }
@@ -205,14 +218,20 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         controls.enabled = false;
     }
 
+    /*
+     * Arrival angle when a pin is clicked: 22° above the ground, so you see the fronts of the houses
+     * (35° before showed mostly the roofs). Places with a tall building next to them (minElev) stay higher.
+     */
+    const DEFAULT_MIN_ELEV = 20;
+    const VIEW_ELEV = 22;
     function viewFor(h) {
         const target = toWorld([h.at[0], h.at[1] * 0.45, h.at[2]]);
         const dist = Math.max(h.view * normScale, controls.minDistance * 1.2);
-        /* keep the side the user is looking from, seen from ~35° above */
+        /* keep the side the user is looking from */
         const dir = camera.position.clone().sub(controls.target).setY(0);
         if (dir.lengthSq() < 1e-6) dir.set(1, 0, 1);
         dir.normalize();
-        const elev = THREE.MathUtils.degToRad(Math.max(35, (h.minElev ?? 28) + 5));
+        const elev = THREE.MathUtils.degToRad(Math.max(VIEW_ELEV, (h.minElev ?? DEFAULT_MIN_ELEV) + 2));
         const pos = target.clone()
             .addScaledVector(dir, Math.cos(elev) * dist)
             .add(new THREE.Vector3(0, Math.sin(elev) * dist, 0));

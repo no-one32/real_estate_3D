@@ -5,7 +5,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { initHotspots } from './hotspots.js?v=18';
+import { initHotspots } from './hotspots.js?v=19';
 
 /* ------------------------------------------------------------------ *
  *  Device profile — same agreed settings as the previous viewer
@@ -18,8 +18,9 @@ const IS_MOBILE = FORCE_MOBILE || (() => {
         (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 900);
 })();
 
-const MAX_DPR = IS_MOBILE ? 1 : 1.5;
-const ANISOTROPY = IS_MOBILE ? 2 : 8;
+/* phone: 1.5 (was 1, looked blurry on 2x/3x screens); the frame-rate guard below lowers it if the phone is slow */
+const MAX_DPR = 1.5;
+const ANISOTROPY = IS_MOBILE ? 4 : 8;
 const ENABLE_SHADOWS = params.get('shadows') === '0' ? false : true;
 const ENABLE_TRANSMISSION = params.get('trans') === '1'
     ? true
@@ -152,8 +153,6 @@ applyHomeView();
 /* ------------------------------------------------------------------ *
  *  Sun — travels from sunrise to sunset via the slider
  * ------------------------------------------------------------------ */
-const SUNSET_COLOR = new THREE.Color(0xffa463);  /* warm but not orange-red */
-const GOLDEN_COLOR = new THREE.Color(0xffd6a0);
 const NOON_COLOR = new THREE.Color(0xffe3b8);  /* Model Studio sun colour */
 
 const SUN = {
@@ -162,17 +161,22 @@ const SUN = {
     maxElevation: THREE.MathUtils.degToRad(70)
 };
 
+const SUN_FIXED_DIR = (() => {
+    const el = THREE.MathUtils.degToRad(40), az = THREE.MathUtils.degToRad(-19);
+    return new THREE.Vector3(Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az));
+})();
+
 const sun = new THREE.DirectionalLight(NOON_COLOR, 6.0);
 sun.target.position.set(0, 0, 0);
 sun.castShadow = ENABLE_SHADOWS;
 if (ENABLE_SHADOWS) {
-    const mapSize = IS_MOBILE ? 1024 : 2048;
+    const mapSize = 2048; /* same on the phone: 1024 made the house shadows blurry / faint */
     sun.shadow.mapSize.set(mapSize, mapSize);
     sun.shadow.bias = -0.00006;
     sun.shadow.normalBias = 0.08;
     sun.shadow.radius = 1.6;
-    /* shadows lighter than pure black, like real daylight (the sky lights the shade) */
-    sun.shadow.intensity = 0.78;
+    /* clearly visible house shadows (the sky light still keeps them from being black) */
+    sun.shadow.intensity = 0.95;
     const sc = sun.shadow.camera;
     sc.left = -100;
     sc.right = 100;
@@ -216,15 +220,7 @@ new RGBELoader().load(
 /* ------------------------------------------------------------------ *
  *  Time of day: sunrise (t = 0) -> noon (0.5) -> sunset (t = 1)
  * ------------------------------------------------------------------ */
-const _sunColor = new THREE.Color();
 
-function sunDirectionFromTime(t) {
-    /* never lower than 12°: a sun on the horizon left whole streets in black shadow */
-    const elev = THREE.MathUtils.degToRad(12) + Math.sin(Math.PI * t) * (SUN.maxElevation - THREE.MathUtils.degToRad(12));
-    const az = Math.PI * t;                        /* east -> south -> west */
-    const ce = Math.cos(elev);
-    return new THREE.Vector3(ce * Math.cos(az), Math.sin(elev), ce * Math.sin(az));
-}
 
 let shadowFrustumDist = -1;
 const _lf = new THREE.Vector3(), _lu = new THREE.Vector3(), _lr = new THREE.Vector3(), _lc = new THREE.Vector3();
@@ -286,13 +282,14 @@ function updateShadowFrustum(force) {
 
 function applySun(t, forceShadow) {
     SUN.t = THREE.MathUtils.clamp(t, 0, 1);
-    const k = Math.sin(Math.PI * SUN.t);           /* 0 at the horizon, 1 at noon */
 
-    SUN.dir.copy(sunDirectionFromTime(SUN.t));
-
-    if (k < 0.5) _sunColor.copy(SUNSET_COLOR).lerp(GOLDEN_COLOR, k / 0.5);
-    else _sunColor.copy(GOLDEN_COLOR).lerp(NOON_COLOR, (k - 0.5) / 0.5);
-    sun.color.copy(_sunColor);
+    /*
+     * Fixed sun, 40° above the horizon (Model Studio uses 42°), coming from the front-right of the
+     * opening view. A high sun (66° before) made short shadows hidden under the houses; this one casts
+     * long shadows that fall across the streets, on the side the camera sees.
+     */
+    SUN.dir.copy(SUN_FIXED_DIR);
+    sun.color.copy(NOON_COLOR);
 
     /* light intensities = Model Studio defaults (sun 2.6, sky fill 0.45, environment 0.85) */
     sun.intensity = 2.6;
