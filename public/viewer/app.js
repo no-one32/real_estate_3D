@@ -85,8 +85,62 @@ container.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 
 const HORIZON = 0xc2d2e2;
-/* light haze: barely there close up, stronger as you move away (distance-based) */
-scene.fog = new THREE.FogExp2(HORIZON, 0.0028);
+/*
+ * Fog = two layers mixed together:
+ *  - a distance haze (the city far away fades into the sky)
+ *  - a soft ground mist lying over the whole site (thick at ground level, thinning out with height),
+ *    so the fog is also seen in the middle of the view, not only at the edges. It gets lighter when
+ *    the camera is close to a place and builds up as you zoom out.
+ * Values are in scene units (the project is normalised to a ~100 unit radius, buildings ~8 high).
+ */
+const FOG = {
+    density: 0.0022,   /* distance haze */
+    ground: 0.42,      /* ground mist strength (0 = none) */
+    height: 2.2,       /* how high the mist rises */
+    near: 70,          /* how fast the mist builds up with camera distance */
+};
+scene.fog = new THREE.FogExp2(HORIZON, FOG.density);
+
+THREE.ShaderChunk.fog_pars_vertex = `
+#ifdef USE_FOG
+    varying float vFogDepth;
+    varying vec3 vFogWorld;
+#endif`;
+THREE.ShaderChunk.fog_vertex = `
+#ifdef USE_FOG
+    vFogDepth = - mvPosition.z;
+    vec4 fogWorld = vec4( transformed, 1.0 );
+    #ifdef USE_INSTANCING
+        fogWorld = instanceMatrix * fogWorld;
+    #endif
+    vFogWorld = ( modelMatrix * fogWorld ).xyz;
+#endif`;
+THREE.ShaderChunk.fog_pars_fragment = `
+#ifdef USE_FOG
+    uniform vec3 fogColor;
+    varying float vFogDepth;
+    varying vec3 vFogWorld;
+    #ifdef FOG_EXP2
+        uniform float fogDensity;
+    #else
+        uniform float fogNear;
+        uniform float fogFar;
+    #endif
+#endif`;
+THREE.ShaderChunk.fog_fragment = `
+#ifdef USE_FOG
+    float fogDist = length( vFogWorld - cameraPosition );
+    #ifdef FOG_EXP2
+        float fogFactor = 1.0 - exp( - fogDensity * fogDensity * fogDist * fogDist );
+    #else
+        float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
+    #endif
+    float mistH = max( vFogWorld.y, 0.0 );
+    float mist = ${FOG.ground.toFixed(3)} * exp( - mistH / ${FOG.height.toFixed(3)} )
+               * ( 1.0 - exp( - fogDist / ${FOG.near.toFixed(1)} ) );
+    fogFactor = clamp( fogFactor + mist * ( 1.0 - fogFactor ), 0.0, 1.0 );
+    gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );
+#endif`;
 
 function makeSkyTexture() {
     const canvas = document.createElement('canvas');
