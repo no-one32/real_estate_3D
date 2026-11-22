@@ -82,7 +82,7 @@ export const HOTSPOTS = [
         'ثلاثة نماذج من طابقين مع سطح: 200 م² و4 غرف نوم، 250 م² و5 غرف، 300 م² و6 غرف، ولكل نموذج تصميمان للواجهة (A وB).',
       ],
       facts: ['قريبة من الحديقة', 'قريبة من مخرج المشروع', 'قرب البحيرة'] },
-    { id: 'airport', icon: 'plane', title: 'مطار أبها الدولي', at: [-38000, 0, -38000], far: true, snap: true,
+    { id: 'airport', icon: 'plane', title: 'مطار أبها الدولي', at: [-125000, 0, -101800], far: true, snap: true,
       text: [
         'المطار الرئيسي في منطقة عسير، على بُعد نحو 25 دقيقة بالسيارة من المشروع.',
         'رحلات داخلية منتظمة إلى الرياض وجدة والدمام، إضافة إلى رحلات دولية.',
@@ -362,6 +362,19 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         for (const it of items) {
             v.copy(it.world).project(camera);
             const behind = v.z > 1 || v.z < -1;
+            /*
+             * Far places (the airport, ~1.8 km away) are usually beyond the top of the screen: their pin
+             * stays on the edge of the view, in their direction, instead of disappearing.
+             */
+            let edge = false;
+            if (it.h.far && !behind) {
+                const cx = Math.min(0.9, Math.max(-0.9, v.x));
+                const cy = Math.min(0.72, Math.max(-0.85, v.y));
+                edge = cx !== v.x || cy !== v.y;
+                v.x = cx;
+                v.y = cy;
+            }
+            it.el.classList.toggle('hs-edge', edge);
             const off = v.x < -1.1 || v.x > 1.1 || v.y < -1.1 || v.y > 1.1;
             /* a pin right next to the camera would swing across the screen at the smallest move */
             const tooClose = camera.position.distanceTo(it.world) < camDist * 0.3;
@@ -396,5 +409,6 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         }
     }
 
-    return { update, open, close, goHome, isFlying: () => !!flight };
+    /* flyTo / lockOn / unlock are shared with the villas (villas.js): same flight and handling */
+    return { update, open, close, goHome, flyTo, lockOn, unlock, isOpen: () => !!current, isFlying: () => !!flight };
 }

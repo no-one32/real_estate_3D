@@ -5,7 +5,8 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { initHotspots } from './hotspots.js?v=19';
+import { initHotspots } from './hotspots.js?v=21';
+import { initVillas, isVillaShape } from './villas.js?v=2';
 
 /* ------------------------------------------------------------------ *
  *  Device profile — same agreed settings as the previous viewer
@@ -15,7 +16,13 @@ const FORCE_MOBILE = params.get('mobile') === '1';
 const IS_MOBILE = FORCE_MOBILE || (() => {
     const ua = navigator.userAgent || '';
     return /Android|iPhone|iPad|iPod|IEMobile|Mobile/i.test(ua) ||
-        (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 900);
+        (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 900) ||
+        /*
+         * Tablets: every touch-first device (iPad Pro 12.9" says "Macintosh" and has a 1024 px wide screen,
+         * so the checks above missed it and it got the heavy desktop profile → slow, hot, sometimes reloaded
+         * by Safari). A laptop with a touch screen keeps the desktop profile (its main pointer is the mouse).
+         */
+        (navigator.maxTouchPoints > 1 && window.matchMedia('(pointer: coarse)').matches);
 })();
 
 /* phone: 1.5 (was 1, looked blurry on 2x/3x screens); the frame-rate guard below lowers it if the phone is slow */
@@ -327,7 +334,8 @@ const TEXTURE_SLOTS = [
     'iridescenceMap', 'transmissionMap', 'thicknessMap'
 ];
 
-const MODEL_URL = params.get('model') || '/models/FINAL.glb';
+/* Interactive.glb = the same model + one invisible shape per villa (hover / click, villas.js) */
+const MODEL_URL = params.get('model') || '/models/Interactive.glb';
 
 /* after the download: creep from 90% to 99% while the model is unpacked, with a message, so it never looks stuck */
 let unpackTimer = null;
@@ -343,6 +351,7 @@ function startUnpacking() {
 }
 const loadStart = performance.now();
 let hotspots = null;
+let villas = null;
 let compiling = false;
 
 loader.load(
@@ -401,6 +410,12 @@ loader.load(
 
         root.traverse((obj) => {
             if (!obj.isMesh) return;
+            /* villa shapes: not part of the drawn model (villas.js gives them their own material) */
+            if (isVillaShape(obj)) {
+                obj.castShadow = false;
+                obj.receiveShadow = false;
+                return;
+            }
             meshCount++;
 
             obj.geometry.computeBoundingBox();
@@ -500,6 +515,9 @@ loader.load(
             editMode: params.get('edit') === '1',
         });
 
+        /* villas: hover colour, eye, 1st click approach, 2nd click inside (villas.js) */
+        villas = initVillas({ THREE, scene, camera, controls, renderer, root, normScale, hotspots });
+
         /* place the sun for the loaded scene and fit the shadow frustum */
         applySun(SUN.t, true);
 
@@ -508,7 +526,7 @@ loader.load(
 
         /* diagnostics + first frame */
         window.__viewer = {
-            scene, camera, renderer, controls, model, root,
+            scene, camera, renderer, controls, model, root, hotspots, villas,
             info: {
                 isMobile: IS_MOBILE,
                 radius,
@@ -557,7 +575,7 @@ loader.load(
          * MB counter moved (0.1, 0.2 …). Fall back to the known size of the file to show a percentage.
          */
         if (unpackTimer) return;
-        const total = (xhr && xhr.total) || (MODEL_URL.endsWith('FINAL.glb') ? 14049276 : 0);
+        const total = (xhr && xhr.total) || (MODEL_URL.endsWith('Interactive.glb') ? 14075636 : MODEL_URL.endsWith('FINAL.glb') ? 14049276 : 0);
         if (xhr && total) {
             /* the download fills the bar to 90%; the last 10% is unpacking the model (can take a few seconds) */
             const pct = Math.min(90, Math.round((xhr.loaded / total) * 90));
@@ -631,8 +649,11 @@ let currentDpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
 
 renderer.setAnimationLoop(() => {
     if (compiling) return;
+    /* inside a villa the 3D view is covered: stop drawing it (the 360 tour has its own WebGL) */
+    if (document.getElementById('villa-tour')?.classList.contains('open')) return;
     if (!hotspots || !hotspots.isFlying()) controls.update();
     hotspots?.update();
+    villas?.update();
     updateShadowFrustum();
     renderer.render(scene, camera);
 

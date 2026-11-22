@@ -12,6 +12,19 @@ const path = require('path');
 const os = require('os');
 
 const ROOT = path.resolve(__dirname, 'public');
+
+/*
+ * Local copy of the Vercel functions in api/ (config.js, leads.js), so the villas work here too.
+ * Their environment variables are read from .env.local (same names as on Vercel; not committed).
+ */
+try {
+    const envFile = path.join(__dirname, '.env.local');
+    for (const line of fs.readFileSync(envFile, 'utf8').split(/\r?\n/)) {
+        const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
+        if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2');
+    }
+} catch (e) { /* no .env.local: the viewer falls back to units.json */ }
+const API = { '/api/config': 'config.js', '/api/leads': 'leads.js' };
 const PORT = Number(process.env.PORT) || 8015;
 
 const types = {
@@ -41,6 +54,14 @@ const server = http.createServer((req, res) => {
         urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
     } catch (e) {
         res.writeHead(400); res.end('Bad request'); return;
+    }
+    if (API[urlPath]) {
+        const url = require('url').pathToFileURL(path.join(__dirname, 'api', API[urlPath])).href;
+        import(url).then((m) => m.default(req, res)).catch((e) => {
+            console.error(e);
+            res.writeHead(500); res.end('API error');
+        });
+        return;
     }
     if (urlPath === '/') urlPath = '/viewer/';
     if (urlPath.endsWith('/')) urlPath += 'index.html';

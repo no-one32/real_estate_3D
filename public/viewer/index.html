@@ -4,7 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0b1220">
-<link rel="preload" href="/models/FINAL.glb" as="fetch" crossorigin="anonymous">
+<link rel="preload" href="/models/Interactive.glb" as="fetch" crossorigin="anonymous">
+<!-- villas: the same look as real-estate (Inter for numbers / Latin, Noto Sans Arabic for Arabic) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="./villa.css?v=2">
 <title>المشروع ثلاثي الأبعاد — النسخة الأخيرة</title>
 <style>
   :root { color-scheme: dark; }
@@ -75,6 +80,14 @@
   }
   #ui button:hover { background: rgba(32, 58, 92, .7); }
   #ui button:active { transform: scale(.94); }
+  /* eye (villa colours): lit when on, like real-estate */
+  #ui #eyeBtn.on { background: #3b7dd8; border-color: #3b7dd8; color: #fff; }
+  /* villas: layers over the 3D view */
+  #villa-hud { position: fixed; inset: 0; z-index: 9; pointer-events: none; }
+  #villa-hud .tip-enter { pointer-events: auto; cursor: pointer; }
+  #villa-tour { position: fixed; inset: 0; z-index: 40; display: none; }
+  #villa-tour.open { display: block; }
+  :root { --font-inter: Inter, "Noto Sans Arabic"; }
 
   #hint {
     position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom));
@@ -165,6 +178,8 @@
   .hs-pin svg { flex: none; width: 30px; height: 30px; padding: 6px; border-radius: 50%; background: #3b7dd8; color: #fff; transition: background .2s ease, color .2s ease; }
   .hs-villa .hs-pin svg { background: #3dba67; }
   .hs-far .hs-pin svg { background: #8a6bd6; }
+  /* far place held on the edge of the view: no stem (it does not stand on what is under it) */
+  .hs-edge .hs-stem { visibility: hidden; }
   /* the name is hidden: only the round icon shows, the mouse over it widens it */
   .hs-pin b { max-width: 0; overflow: hidden; opacity: 0; transition: max-width .3s ease, opacity .2s ease; }
   .hs:hover .hs-pin, .hs:focus-visible .hs-pin, .hs.on .hs-pin { gap: 8px; padding: 4px 14px 4px 4px; background: #3b7dd8; color: #fff; }
@@ -254,7 +269,13 @@
   <button id="reset" title="إعادة ضبط الكاميرا" aria-label="إعادة ضبط الكاميرا">⟲</button>
   <button id="fs" title="ملء الشاشة" aria-label="ملء الشاشة">⛶</button>
   <button id="placesBtn" title="الأماكن" aria-label="الأماكن">☰</button>
+  <!-- eye: show / hide the colour of every villa (green available, orange reserved, red sold) -->
+  <button id="eyeBtn" title="Show units" aria-label="إظهار الوحدات" aria-pressed="false"></button>
 </div>
+
+<!-- villas (villas.js / villa-tour.js): hover card, "click again to enter" card, inside the villa -->
+<div id="villa-hud" dir="ltr"></div>
+<div id="villa-tour" dir="ltr"></div>
 
 <div id="hotspots"></div>
 <nav id="places" aria-label="الأماكن"></nav>
@@ -268,10 +289,11 @@
 {
   "imports": {
     "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/",
+    "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/build/index.module.js"
   }
 }
 </script>
-<script type="module" src="./app.js?v=31"></script>
+<script type="module" src="./app.js?v=33"></script>
 </body>
 </html>
