@@ -87,9 +87,9 @@ export const HOTSPOTS = [
       ],
       facts: ['قريبة من المدرسة', 'قريبة من ملعب الأطفال', 'صفوف منحنية'] },
     { id: 'villas-east', icon: 'home', title: 'فلل قرب الحديقة', at: [25000, 1060, -8000], view: 9000, villa: true,
-      /* the pin stays here; the click looks at the nearest villas (row T2-027, T1-067, T1-068, T1-071),
-         from in front of their doors, like "villas near the school" */
-      cam: { look: [18794, 1060, -13300], dir: [0, 1], elev: 26, dist: 5000 },
+      /* the pin stays here; the click shows the grey (not for sale) villa block right next to it
+         (x 226–284 m, z -71…-17 m in the model), seen from the pin's side */
+      cam: { look: [25481, 1060, -4415], dir: [0, -1], elev: 30, dist: 6500 },
       text: [
         'فلل بين الحديقة والطريق الرئيسي: قريبة من المساحات الخضراء والبحيرة ومن مخرج المشروع.',
         'ثلاثة نماذج من طابقين مع سطح: 200 م² و4 غرف نوم، 250 م² و5 غرف، 300 م² و6 غرف، ولكل نموذج تصميمان للواجهة (A وB).',
