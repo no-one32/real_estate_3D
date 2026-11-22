@@ -233,12 +233,13 @@ export function initVillas({ THREE, scene, camera, controls, renderer, root, nor
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
         const target = new THREE.Vector3(center.x, box.min.y + size.y * 0.45, center.z);
-        /* far enough to see the whole villa and its neighbours, seen 22° from above like the pins */
-        const dist = Math.max(Math.max(size.x, size.z) * 3.2, controls.minDistance * 1.2);
-        const dir = camera.position.clone().sub(controls.target).setY(0);
-        if (dir.lengthSq() < 1e-6) dir.set(1, 0, 1);
-        dir.normalize();
-        const elev = THREE.MathUtils.degToRad(22);
+        /*
+         * Like Novoross: stop in front of the villa's street door, a little to the side (¾ view), 20°
+         * above the ground, far enough to see the whole facade and the neighbours (hotspots.viewDir).
+         */
+        const dist = Math.max(Math.max(size.x, size.z) * 2.8, controls.minDistance * 1.2);
+        const elev = THREE.MathUtils.degToRad(20);
+        const dir = hotspots.viewDir({ target, dist, elev, shape: mesh.name });
         const pos = target.clone()
             .addScaledVector(dir, Math.cos(elev) * dist)
             .add(new THREE.Vector3(0, Math.sin(elev) * dist, 0));

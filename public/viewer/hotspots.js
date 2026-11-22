@@ -82,7 +82,7 @@ export const HOTSPOTS = [
         'ثلاثة نماذج من طابقين مع سطح: 200 م² و4 غرف نوم، 250 م² و5 غرف، 300 م² و6 غرف، ولكل نموذج تصميمان للواجهة (A وB).',
       ],
       facts: ['قريبة من الحديقة', 'قريبة من مخرج المشروع', 'قرب البحيرة'] },
-    { id: 'airport', icon: 'plane', title: 'مطار أبها الدولي', at: [-125000, 0, -101800], far: true, snap: true,
+    { id: 'airport', icon: 'plane', title: 'مطار أبها الدولي', at: [-95990, 0, -80530], far: true, snap: true,
       text: [
         'المطار الرئيسي في منطقة عسير، على بُعد نحو 25 دقيقة بالسيارة من المشروع.',
         'رحلات داخلية منتظمة إلى الرياض وجدة والدمام، إضافة إلى رحلات دولية.',
@@ -209,7 +209,11 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
             /* spherical description of the start / end camera offsets around their targets */
             const s0 = new THREE.Spherical().setFromVector3(flight.p0.clone().sub(flight.t0));
             const s1 = new THREE.Spherical().setFromVector3(pos.clone().sub(target));
-            let dTheta = s1.theta - s0.theta;
+            /*
+             * The approach ends `spin` short of the final angle, then the last turn brings the camera
+             * exactly onto the chosen view (before, the turn went past it: you ended on the side).
+             */
+            let dTheta = s1.theta - spin - s0.theta;
             dTheta = Math.atan2(Math.sin(dTheta), Math.cos(dTheta)); /* shortest way round */
             flight.s0 = s0;
             flight.s1 = s1;
@@ -224,14 +228,81 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
      */
     const DEFAULT_MIN_ELEV = 20;
     const VIEW_ELEV = 22;
+
+    /* ---------- best viewpoint (like the prepared cameras of Novoross) ---------- */
+    /*
+     * villa-fronts.json: for 132 of the 139 villas, the side of the street door (found from the model:
+     * behind a villa the next house is ~25 m away, back-to-back gardens; in front there is the street).
+     */
+    let fronts = {};
+    fetch('./villa-fronts.json').then((r) => r.json()).then((j) => { fronts = j; }).catch(() => {});
+    const shapes = [];
+    root.traverse((o) => {
+        if (o.isMesh && /^\d+$/.test(o.name)) {
+            shapes.push({ name: o.name, c: new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3()) });
+        }
+    });
+    const UP = new THREE.Vector3(0, 1, 0);
+    const THREE_QUARTER = THREE.MathUtils.degToRad(25); /* a bit to the side of the facade: front + depth */
+
+    function currentDir() {
+        const d = camera.position.clone().sub(controls.target).setY(0);
+        if (d.lengthSq() < 1e-6) d.set(1, 0, 1);
+        return d.normalize();
+    }
+
+    /** ¾ view of a facade: the front direction turned 25° toward the side the user comes from */
+    function threeQuarter(front, prefer) {
+        const a = front.clone().applyAxisAngle(UP, THREE_QUARTER);
+        const b = front.clone().applyAxisAngle(UP, -THREE_QUARTER);
+        return a.dot(prefer) >= b.dot(prefer) ? a : b;
+    }
+
+    /**
+     * Direction (horizontal, from the target toward the camera) of the best view:
+     *  - a villa (shape name given, or the villa nearest to a villa pin): in front of its street door;
+     *  - anything else: the side where no houses stand between the camera and the place.
+     */
+    function viewDir({ target, dist, elev, shape = null, villaArea = false }) {
+        const prefer = currentDir();
+        let name = shape;
+        if (!name && villaArea) {
+            let best = Infinity;
+            for (const s of shapes) {
+                if (!fronts[s.name]) continue;
+                const d = Math.hypot(s.c.x - target.x, s.c.z - target.z);
+                if (d < best) { best = d; name = s.name; }
+            }
+        }
+        const f = name && fronts[name];
+        if (f) return threeQuarter(new THREE.Vector3(f[0], 0, f[1]).normalize(), prefer);
+
+        const L = Math.cos(elev) * dist;
+        const W = 1400 * normScale; /* a house closer than ~14 m to the line of sight blocks it */
+        let bestDir = prefer, bestScore = Infinity;
+        const d = new THREE.Vector3(), rel = new THREE.Vector3();
+        for (let k = 0; k < 24; k++) {
+            const a = (k / 24) * Math.PI * 2;
+            d.set(Math.sin(a), 0, Math.cos(a));
+            let score = 0;
+            for (const s of shapes) {
+                rel.subVectors(s.c, target).setY(0);
+                const t = rel.dot(d);
+                if (t < L * 0.08 || t > L * 1.1) continue;
+                const lateral = rel.addScaledVector(d, -t).length();
+                if (lateral < W) score += 1 - lateral / W;
+            }
+            score += 0.4 * (1 - d.dot(prefer)); /* equal views: stay close to where the user is */
+            if (score < bestScore) { bestScore = score; bestDir = d.clone(); }
+        }
+        return bestDir;
+    }
+
     function viewFor(h) {
         const target = toWorld([h.at[0], h.at[1] * 0.45, h.at[2]]);
         const dist = Math.max(h.view * normScale, controls.minDistance * 1.2);
-        /* keep the side the user is looking from */
-        const dir = camera.position.clone().sub(controls.target).setY(0);
-        if (dir.lengthSq() < 1e-6) dir.set(1, 0, 1);
-        dir.normalize();
         const elev = THREE.MathUtils.degToRad(Math.max(VIEW_ELEV, (h.minElev ?? DEFAULT_MIN_ELEV) + 2));
+        const dir = viewDir({ target, dist, elev, villaArea: !!h.villa });
         const pos = target.clone()
             .addScaledVector(dir, Math.cos(elev) * dist)
             .add(new THREE.Vector3(0, Math.sin(elev) * dist, 0));
@@ -362,19 +433,6 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         for (const it of items) {
             v.copy(it.world).project(camera);
             const behind = v.z > 1 || v.z < -1;
-            /*
-             * Far places (the airport, ~1.8 km away) are usually beyond the top of the screen: their pin
-             * stays on the edge of the view, in their direction, instead of disappearing.
-             */
-            let edge = false;
-            if (it.h.far && !behind) {
-                const cx = Math.min(0.9, Math.max(-0.9, v.x));
-                const cy = Math.min(0.72, Math.max(-0.85, v.y));
-                edge = cx !== v.x || cy !== v.y;
-                v.x = cx;
-                v.y = cy;
-            }
-            it.el.classList.toggle('hs-edge', edge);
             const off = v.x < -1.1 || v.x > 1.1 || v.y < -1.1 || v.y > 1.1;
             /* a pin right next to the camera would swing across the screen at the smallest move */
             const tooClose = camera.position.distanceTo(it.world) < camDist * 0.3;
@@ -410,5 +468,5 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
     }
 
     /* flyTo / lockOn / unlock are shared with the villas (villas.js): same flight and handling */
-    return { update, open, close, goHome, flyTo, lockOn, unlock, isOpen: () => !!current, isFlying: () => !!flight };
+    return { update, open, close, goHome, flyTo, lockOn, unlock, viewDir, isOpen: () => !!current, isFlying: () => !!flight };
 }

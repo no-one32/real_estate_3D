@@ -5,8 +5,8 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { initHotspots } from './hotspots.js?v=21';
-import { initVillas, isVillaShape } from './villas.js?v=2';
+import { initHotspots } from './hotspots.js?v=23';
+import { initVillas, isVillaShape } from './villas.js?v=3';
 
 /* ------------------------------------------------------------------ *
  *  Device profile — same agreed settings as the previous viewer
@@ -183,7 +183,7 @@ if (ENABLE_SHADOWS) {
     sun.shadow.normalBias = 0.08;
     sun.shadow.radius = 1.6;
     /* clearly visible house shadows (the sky light still keeps them from being black) */
-    sun.shadow.intensity = 0.95;
+    sun.shadow.intensity = 1.0;
     const sc = sun.shadow.camera;
     sc.left = -100;
     sc.right = 100;
@@ -280,8 +280,12 @@ function updateShadowFrustum(force) {
     sc.updateProjectionMatrix();
 
     /* bias scaled to the real world size of one shadow texel (kills acne) */
-    sun.shadow.normalBias = Math.max(0.03, texelSize * 1.4);
-    sun.shadow.bias = -0.00006;
+    /*
+     * Offset that stops shadow "acne". 1.4 texels (~1 m on the overall view) cut the house shadows short;
+     * 0.6 texel keeps them full size, the small depth bias still keeps the walls clean.
+     */
+    sun.shadow.normalBias = Math.max(0.02, texelSize * 0.6);
+    sun.shadow.bias = -0.0002;
 
     shadowFrustumDist = dist;
     shadowFrustumTarget.copy(controls.target);
@@ -298,10 +302,14 @@ function applySun(t, forceShadow) {
     SUN.dir.copy(SUN_FIXED_DIR);
     sun.color.copy(NOON_COLOR);
 
-    /* light intensities = Model Studio defaults (sun 2.6, sky fill 0.45, environment 0.85) */
-    sun.intensity = 2.6;
-    hemi.intensity = 0.45;
-    scene.environmentIntensity = 0.85;
+    /*
+     * Model Studio light, rebalanced so the house shadows show: part of the sky light moved to the sun.
+     * Sunlit walls / roofs keep about the same brightness (3.1 + 0.3 + 0.65 ≈ 2.6 + 0.45 + 0.85 at this
+     * sun angle); the shade only gets the sky light, so the shadows come out ~25 % darker.
+     */
+    sun.intensity = 3.1;
+    hemi.intensity = 0.3;
+    scene.environmentIntensity = 0.65;
     scene.backgroundIntensity = 1.0;
 
     updateShadowFrustum(true);
