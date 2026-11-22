@@ -402,7 +402,11 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
                 flight = null;
                 done?.();
                 controls.enabled = true;
+                /* no leftover glide from before the flight: the camera stays exactly on the chosen view */
+                const damp = controls.enableDamping;
+                controls.enableDamping = false;
                 controls.update();
+                controls.enableDamping = damp;
             }
         }
         /*
