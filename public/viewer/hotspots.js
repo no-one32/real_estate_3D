@@ -190,6 +190,13 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         dampingFactor: controls.dampingFactor,
     };
     function lockOn(dist, minElev = DEFAULT_MIN_ELEV, minDistFactor = 0.5) {
+        /* ?edit=1: free camera (turn, zoom and slide anywhere) to set up a view, then press C */
+        if (editMode) {
+            unlock();
+            controls.enablePan = true;
+            controls.screenSpacePanning = true;
+            return;
+        }
         controls.enablePan = false;
         /* close to a place: the earlier handling, which felt right there */
         controls.rotateSpeed = 0.75;
@@ -382,7 +389,9 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
             const len = off.length();
             const flat = Math.hypot(off.x, off.z) || 1;
             const elev = Math.round(THREE.MathUtils.radToDeg(Math.asin(off.y / len)));
-            const look = current.cam?.look ? `look: [${current.cam.look.join(', ')}], ` : '';
+            /* the point looked at, in model coordinates (y as stored: the view aims at 45 % of it) */
+            const lt = root.worldToLocal(controls.target.clone());
+            const look = `look: [${Math.round(lt.x)}, ${Math.round(lt.y / 0.45)}, ${Math.round(lt.z)}], `;
             const txt = `cam: { ${look}dir: [${(off.x / flat).toFixed(3)}, ${(off.z / flat).toFixed(3)}], elev: ${elev}, dist: ${Math.round(len / normScale)} },  // ${current.id}`;
             console.log('CAM', txt);
             navigator.clipboard?.writeText(txt).catch(() => {});

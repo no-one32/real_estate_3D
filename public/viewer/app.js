@@ -5,7 +5,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { initHotspots } from './hotspots.js?v=29';
+import { initHotspots } from './hotspots.js?v=30';
 import { initVillas, isVillaShape } from './villas.js?v=7';
 
 /* ------------------------------------------------------------------ *
