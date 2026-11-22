@@ -35,6 +35,7 @@ const ICONS = {
  * cam:  the prepared camera of the place (like Novoross): dir = [x, z] direction from the place toward
  *       the camera (model axes), elev = degrees above the ground, dist = cm. To make one: open the viewer
  *       with ?edit=1, click the pin, turn the camera to the wanted view and press C (the line is copied).
+ *       look (optional): the point the camera looks at, when it is not the pin itself.
  */
 export const HOTSPOTS = [
     { id: 'mosque', icon: 'mosque', title: 'المسجد', at: [11950, 1504, -7000], view: 7000,
@@ -85,9 +86,10 @@ export const HOTSPOTS = [
         'ثلاثة نماذج من طابقين مع سطح: 200 م² و4 غرف نوم، 250 م² و5 غرف، 300 م² و6 غرف، ولكل نموذج تصميمان للواجهة (A وB).',
       ],
       facts: ['قريبة من المدرسة', 'قريبة من ملعب الأطفال', 'صفوف منحنية'] },
-    { id: 'villas-east', icon: 'home', title: 'فلل قرب الحديقة', at: [27161, 1060, -20091], view: 9000, villa: true,
-      /* on the east row (T1-072 … T1-076, T2-028), seen from in front of their doors like "villas near the school" */
-      cam: { dir: [0, 1], elev: 24, dist: 5800 },
+    { id: 'villas-east', icon: 'home', title: 'فلل قرب الحديقة', at: [25000, 1060, -8000], view: 9000, villa: true,
+      /* the pin stays here; the click looks at the nearest villas (row T2-027, T1-067, T1-068, T1-071),
+         from in front of their doors, like "villas near the school" */
+      cam: { look: [18794, 1060, -13300], dir: [0, 1], elev: 26, dist: 5000 },
       text: [
         'فلل بين الحديقة والطريق الرئيسي: قريبة من المساحات الخضراء والبحيرة ومن مخرج المشروع.',
         'ثلاثة نماذج من طابقين مع سطح: 200 م² و4 غرف نوم، 250 م² و5 غرف، 300 م² و6 غرف، ولكل نموذج تصميمان للواجهة (A وB).',
@@ -304,7 +306,9 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
     /* villa pins: like his "villas near the school" photo, in front of the doors, 24° up */
     const VILLA_PIN_ELEV = 24;
     function viewFor(h) {
-        const target = toWorld([h.at[0], h.at[1] * 0.45, h.at[2]]);
+        const target = h.cam?.look
+            ? toWorld([h.cam.look[0], h.cam.look[1] * 0.45, h.cam.look[2]])
+            : toWorld([h.at[0], h.at[1] * 0.45, h.at[2]]);
         if (h.cam) {
             /* prepared camera of this place */
             const dist = Math.max(h.cam.dist * normScale, controls.minDistance * 1.2);
@@ -378,7 +382,8 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
             const len = off.length();
             const flat = Math.hypot(off.x, off.z) || 1;
             const elev = Math.round(THREE.MathUtils.radToDeg(Math.asin(off.y / len)));
-            const txt = `cam: { dir: [${(off.x / flat).toFixed(3)}, ${(off.z / flat).toFixed(3)}], elev: ${elev}, dist: ${Math.round(len / normScale)} },  // ${current.id}`;
+            const look = current.cam?.look ? `look: [${current.cam.look.join(', ')}], ` : '';
+            const txt = `cam: { ${look}dir: [${(off.x / flat).toFixed(3)}, ${(off.z / flat).toFixed(3)}], elev: ${elev}, dist: ${Math.round(len / normScale)} },  // ${current.id}`;
             console.log('CAM', txt);
             navigator.clipboard?.writeText(txt).catch(() => {});
             const t = document.getElementById('editToast');
