@@ -80,9 +80,13 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
  * Neutral (Khronos PBR Neutral) instead of AgX: AgX greys out and darkens the colours,
  * Neutral keeps the real colours of the materials (white walls stay white, grass stays green).
  */
-/* Same look as Model Studio (the reference he approved): ACES, exposure 1. */
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
+/*
+ * Light and shadows = his reference picture (WhatsApp 12.06.08, taken from the viewer of the morning of
+ * 22/11, commit 3a5eb23): Neutral tone mapping, exposure 1.25, high sun. Only the fog differs (the
+ * light Model Studio fog he approved later).
+ */
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.toneMappingExposure = 1.25;
 renderer.shadowMap.enabled = ENABLE_SHADOWS;
 /* PCFSoft costs extra taps; the phone gets the cheaper PCF filter. */
 renderer.shadowMap.type = IS_MOBILE ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
@@ -160,7 +164,8 @@ applyHomeView();
 /* ------------------------------------------------------------------ *
  *  Sun — travels from sunrise to sunset via the slider
  * ------------------------------------------------------------------ */
-const NOON_COLOR = new THREE.Color(0xffe3b8);  /* Model Studio sun colour */
+/* reference sun colour: between golden and noon white (as at 38 % of the day in the morning version) */
+const NOON_COLOR = new THREE.Color(0xffd6a0).lerp(new THREE.Color(0xfff7ea), 0.86);
 
 const SUN = {
     t: 0.38,                                    /* 0 = sunrise, 1 = sunset */
@@ -169,7 +174,8 @@ const SUN = {
 };
 
 const SUN_FIXED_DIR = (() => {
-    const el = THREE.MathUtils.degToRad(40), az = THREE.MathUtils.degToRad(-19);
+    /* reference sun: 66° high, 68° round from east (the morning version's sun at t = 0.38) */
+    const el = THREE.MathUtils.degToRad(65.9), az = THREE.MathUtils.degToRad(68.4);
     return new THREE.Vector3(Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az));
 })();
 
@@ -183,7 +189,7 @@ if (ENABLE_SHADOWS) {
     sun.shadow.normalBias = 0.08;
     sun.shadow.radius = 1.6;
     /* clearly visible house shadows (the sky light still keeps them from being black) */
-    sun.shadow.intensity = 1.0;
+    sun.shadow.intensity = 0.78; /* reference: soft shadows, the sky lights the shade */
     const sc = sun.shadow.camera;
     sc.left = -100;
     sc.right = 100;
@@ -198,7 +204,7 @@ scene.add(sun.target);
 
 /* Cool sky bounce, kept low so the sun keeps the contrast. */
 /* sky / ground fill: enough that the sides away from the sun are not black */
-const hemi = new THREE.HemisphereLight(0xcfe0ff, 0x2b241c, 0.45);  /* Model Studio values */
+const hemi = new THREE.HemisphereLight(0xdfeaf7, 0x8a7f70, 0.83);  /* reference picture values */
 scene.add(hemi);
 
 const pmrem = new THREE.PMREMGenerator(renderer);
@@ -206,14 +212,14 @@ pmrem.compileEquirectangularShader();
 
 const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
 scene.environment = envRT.texture;
-scene.environmentIntensity = 0.85;
+scene.environmentIntensity = 1.03;
 
 new RGBELoader().load(
     './sky.hdr',
     (hdr) => {
         hdr.mapping = THREE.EquirectangularReflectionMapping;
         scene.background = hdr;
-        scene.backgroundBlurriness = 0;
+        scene.backgroundBlurriness = 0.08;
         scene.backgroundIntensity = 1.0;
         scene.environment = pmrem.fromEquirectangular(hdr).texture;
         envRT.dispose();
@@ -284,8 +290,8 @@ function updateShadowFrustum(force) {
      * Offset that stops shadow "acne". 1.4 texels (~1 m on the overall view) cut the house shadows short;
      * 0.6 texel keeps them full size, the small depth bias still keeps the walls clean.
      */
-    sun.shadow.normalBias = Math.max(0.02, texelSize * 0.6);
-    sun.shadow.bias = -0.0002;
+    sun.shadow.normalBias = Math.max(0.03, texelSize * 1.4);
+    sun.shadow.bias = -0.00006;
 
     shadowFrustumDist = dist;
     shadowFrustumTarget.copy(controls.target);
@@ -294,23 +300,15 @@ function updateShadowFrustum(force) {
 function applySun(t, forceShadow) {
     SUN.t = THREE.MathUtils.clamp(t, 0, 1);
 
-    /*
-     * Fixed sun, 40° above the horizon (Model Studio uses 42°), coming from the front-right of the
-     * opening view. A high sun (66° before) made short shadows hidden under the houses; this one casts
-     * long shadows that fall across the streets, on the side the camera sees.
-     */
+    /* fixed sun of the reference picture (see SUN_FIXED_DIR) */
     SUN.dir.copy(SUN_FIXED_DIR);
     sun.color.copy(NOON_COLOR);
 
-    /*
-     * Model Studio light, rebalanced so the house shadows show: part of the sky light moved to the sun.
-     * Sunlit walls / roofs keep about the same brightness (3.1 + 0.3 + 0.65 ≈ 2.6 + 0.45 + 0.85 at this
-     * sun angle); the shade only gets the sky light, so the shadows come out ~25 % darker.
-     */
-    sun.intensity = 3.1;
-    hemi.intensity = 0.3;
-    scene.environmentIntensity = 0.65;
-    scene.backgroundIntensity = 1.0;
+    /* light of the reference picture (morning version at t = 0.38) */
+    sun.intensity = 4.1;
+    hemi.intensity = 0.83;
+    scene.environmentIntensity = 1.03;
+    scene.backgroundIntensity = 0.97;
 
     updateShadowFrustum(true);
 
