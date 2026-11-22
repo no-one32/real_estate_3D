@@ -87,9 +87,9 @@ export const HOTSPOTS = [
       ],
       facts: ['قريبة من المدرسة', 'قريبة من ملعب الأطفال', 'صفوف منحنية'] },
     { id: 'villas-east', icon: 'home', title: 'فلل قرب الحديقة', at: [25000, 1060, -8000], view: 9000, villa: true,
-      /* the pin stays here; the click shows the grey (not for sale) villa block right next to it
-         (x 226–284 m, z -71…-17 m in the model), seen from the pin's side */
-      cam: { look: [25481, 1060, -4415], dir: [0, -1], elev: 30, dist: 6500 },
+      /* the pin stays here; the click shows the grey (not for sale) villa block right next to it.
+         View chosen in the viewer with ?edit=1 + C */
+      cam: { look: [25481, 1060, -4415], dir: [-0.555, -0.832], elev: 1, dist: 6500 },
       text: [
         'فلل بين الحديقة والطريق الرئيسي: قريبة من المساحات الخضراء والبحيرة ومن مخرج المشروع.',
         'ثلاثة نماذج من طابقين مع سطح: 200 م² و4 غرف نوم، 250 م² و5 غرف، 300 م² و6 غرف، ولكل نموذج تصميمان للواجهة (A وB).',
@@ -324,7 +324,7 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
             const pos = target.clone()
                 .addScaledVector(dir, Math.cos(elev) * dist)
                 .add(new THREE.Vector3(0, Math.sin(elev) * dist, 0));
-            return { pos, target, dist, minElev: Math.max(5, h.cam.elev - 3) };
+            return { pos, target, dist, minElev: Math.max(0, Math.min(h.cam.elev, h.cam.elev - 3)) };
         }
         const dist = Math.max((h.villa ? h.view * 0.65 : h.view) * normScale, controls.minDistance * 1.2);
         const elev = THREE.MathUtils.degToRad(h.villa ? VILLA_PIN_ELEV : Math.max(VIEW_ELEV, (h.minElev ?? DEFAULT_MIN_ELEV) + 2));
@@ -350,7 +350,7 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         items.forEach((it) => it.el.classList.toggle('on', it.h === h));
         list?.classList.remove('open'); /* same place on the left as the panel */
         /* picture of the place, rendered from the model (places/<id>.webp); none for far places */
-        const img = h.far ? '' : `<img class="hc-img" src="./places/${h.id}.webp" alt="${h.title}" loading="lazy" onerror="this.remove()">`;
+        const img = h.far ? '' : `<img class="hc-img" src="./places/${h.id}.webp?v=2" alt="${h.title}" loading="lazy" onerror="this.remove()">`;
         card.innerHTML = `
             ${img}
             <button type="button" class="hc-x" aria-label="إغلاق">×</button>
@@ -382,6 +382,35 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
 
     /* ---------- ?edit=1 : click the model to read coordinates for a new pin ---------- */
     if (editMode) {
+        /*
+         * P: picture of the open place for its info panel (places/<id>.webp, 800 × 460), taken from the
+         * current view: the file is downloaded, put it in public/viewer/places/ (same name) and push.
+         */
+        let sceneRoot = root;
+        while (sceneRoot.parent) sceneRoot = sceneRoot.parent;
+        document.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() !== 'p' || !current || current.far) return;
+            const src = renderer.domElement;
+            renderer.render(sceneRoot, camera); /* fresh frame, read in the same task */
+            const W = 800, H = 460;
+            const out = document.createElement('canvas');
+            out.width = W;
+            out.height = H;
+            const scale = Math.max(W / src.width, H / src.height);
+            const sw = W / scale, sh = H / scale;
+            out.getContext('2d').drawImage(src, (src.width - sw) / 2, (src.height - sh) / 2, sw, sh, 0, 0, W, H);
+            out.toBlob((blob) => {
+                if (!blob) return;
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `${current.id}.webp`;
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+                const t = document.getElementById('editToast');
+                if (t) { t.textContent = `${current.id}.webp downloaded → public/viewer/places/`; t.classList.add('show'); }
+            }, 'image/webp', 0.85);
+        });
+
         /* C: copy the prepared camera ("cam") of the open place from the current view */
         document.addEventListener('keydown', (e) => {
             if (e.key.toLowerCase() !== 'c' || !current || current.far) return;
