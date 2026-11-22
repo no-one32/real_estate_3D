@@ -174,8 +174,12 @@ const SUN = {
 };
 
 const SUN_FIXED_DIR = (() => {
-    /* reference sun: 66° high, 68° round from east (the morning version's sun at t = 0.38) */
-    const el = THREE.MathUtils.degToRad(65.9), az = THREE.MathUtils.degToRad(68.4);
+    /*
+     * Asked: the sun placed low like at sunset (long shadows that clearly show), but the light kept as
+     * bright and white as at midday. 18° above the horizon, from the front-right of the opening view,
+     * so the shadows fall across the streets on the side the camera sees.
+     */
+    const el = THREE.MathUtils.degToRad(18), az = THREE.MathUtils.degToRad(-19);
     return new THREE.Vector3(Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az));
 })();
 
@@ -189,7 +193,7 @@ if (ENABLE_SHADOWS) {
     sun.shadow.normalBias = 0.08;
     sun.shadow.radius = 1.6;
     /* clearly visible house shadows (the sky light still keeps them from being black) */
-    sun.shadow.intensity = 0.78; /* reference: soft shadows, the sky lights the shade */
+    sun.shadow.intensity = 0.9; /* clearly visible, not black (the sky still lights the shade) */
     const sc = sun.shadow.camera;
     sc.left = -100;
     sc.right = 100;
@@ -212,7 +216,7 @@ pmrem.compileEquirectangularShader();
 
 const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
 scene.environment = envRT.texture;
-scene.environmentIntensity = 1.03;
+scene.environmentIntensity = 1.12;
 
 new RGBELoader().load(
     './sky.hdr',
@@ -304,10 +308,13 @@ function applySun(t, forceShadow) {
     SUN.dir.copy(SUN_FIXED_DIR);
     sun.color.copy(NOON_COLOR);
 
-    /* light of the reference picture (morning version at t = 0.38) */
-    sun.intensity = 4.1;
+    /*
+     * Midday brightness with a low sun: a low sun lights roofs and streets much less, so it is stronger
+     * (4.1 → 5.0) and the sky light a little brighter (1.03 → 1.12) to keep the bright noon look.
+     */
+    sun.intensity = 5.0;
     hemi.intensity = 0.83;
-    scene.environmentIntensity = 1.03;
+    scene.environmentIntensity = 1.12;
     scene.backgroundIntensity = 0.97;
 
     updateShadowFrustum(true);

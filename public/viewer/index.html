@@ -223,13 +223,27 @@
   #hcard h2 { margin: 0; font-size: 20px; line-height: 1.4; }
   #hcard p { margin: 0; font-size: 15px; line-height: 1.9; color: #3f4f66; }
   #hcard p + p { margin-top: 10px; }
-  @media (max-width: 520px) {
-    #hcard { top: auto; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateY(20px); max-height: 66vh; }
-    .hc-img { aspect-ratio: 3 / 1; }
-    .hc-body { padding: 12px 16px 14px; }
-    #hcard p { font-size: 14px; line-height: 1.75; }
-    .hc-facts { margin-top: 10px; gap: 6px; }
-    .hc-facts li { font-size: 12px; padding: 5px 9px; }
+  /* phones (upright or sideways): a small panel at the bottom that leaves the view free */
+  @media (max-width: 520px), (max-height: 500px) and (pointer: coarse) {
+    #hcard {
+      top: auto; bottom: max(10px, env(safe-area-inset-bottom));
+      left: max(10px, env(safe-area-inset-left)); width: min(360px, calc(100vw - 20px));
+      transform: translateY(20px); max-height: 34vh; border-radius: 14px;
+    }
+    .hc-img { aspect-ratio: 4 / 1; border-radius: 14px 14px 0 0; }
+    .hc-body { padding: 8px 12px 10px; }
+    .hc-head { gap: 8px; margin: 0 0 6px 32px; }
+    .hc-ico { width: 30px; height: 30px; border-radius: 9px; }
+    .hc-ico svg { width: 17px; height: 17px; }
+    #hcard h2 { font-size: 15px; }
+    #hcard p { font-size: 12px; line-height: 1.6; }
+    #hcard p + p { margin-top: 6px; }
+    .hc-facts { margin-top: 8px; gap: 5px; }
+    .hc-facts li { font-size: 10.5px; padding: 3px 8px; gap: 4px; }
+    .hc-x { top: 8px; left: 8px; width: 26px; height: 26px; font-size: 17px; }
+  }
+  @media (max-height: 500px) and (pointer: coarse) {
+    .hc-img { display: none; } /* phone sideways: no room for the picture */
   }
 
   /* ---- places list ---- */
@@ -292,6 +306,6 @@
   }
 }
 </script>
-<script type="module" src="./app.js?v=48"></script>
+<script type="module" src="./app.js?v=49"></script>
 </body>
 </html>
