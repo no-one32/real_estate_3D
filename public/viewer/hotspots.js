@@ -32,21 +32,30 @@ const ICONS = {
  * minElev: lowest camera angle above the ground (degrees) when turning around the place (default 20°);
  *       higher where a tall building stands right next to the place (the school next to the playground).
  * snap: true = the height is taken from the ground under the point when the model loads.
+ * cam:  the prepared camera of the place (like Novoross): dir = [x, z] direction from the place toward
+ *       the camera (model axes), elev = degrees above the ground, dist = cm. To make one: open the viewer
+ *       with ?edit=1, click the pin, turn the camera to the wanted view and press C (the line is copied).
  */
 export const HOTSPOTS = [
     { id: 'mosque', icon: 'mosque', title: 'المسجد', at: [11950, 1504, -7000], view: 7000,
+      /* his photo: in front of the stairs, minaret front-left, school behind */
+      cam: { dir: [-0.2, -1], elev: 22, dist: 4500 },
       text: [
         'مسجد الحي في قلب المشروع، بقبّة ذهبية ومئذنة تُرى من معظم الشوارع، يصل إليه السكان مشياً للصلوات الخمس والجمعة.',
         'تحيط به ساحة مفتوحة، ويجاوره المركز الرياضي والحديقة والمدرسة.',
       ],
       facts: ['في وسط المشروع', 'قبّة ومئذنة', 'ساحة حول المسجد', 'قريب من المدرسة والحديقة'] },
     { id: 'center', icon: 'building', title: 'المركز الرياضي', at: [18000, 1328, -7900], view: 6500,
+      /* his photo: straight in front of the entrance, low, the mosque on the right */
+      cam: { dir: [0, -1], elev: 10, dist: 4200 },
       text: [
         'مبنى متعدد الاستخدامات بجانب المسجد، فوق سطحه ملاعب خضراء لكرة القدم والرياضات الجماعية.',
         'في داخله مساحات للأنشطة واللقاءات، ويطل على الحديقة المركزية على مسافة مشي من الفلل.',
       ],
       facts: ['ملاعب على السطح', 'بجانب المسجد', 'يطل على الحديقة'] },
     { id: 'school', icon: 'school', title: 'المدرسة', at: [11900, 412, -800], view: 6000,
+      /* his photo: from the east, over the fence and trees, facing the courtyard with the flag */
+      cam: { dir: [1, 0], elev: 18, dist: 5000 },
       text: [
         'مدرسة داخل المشروع من مبنيين تتوسطهما ساحة واسعة يرتفع فيها علم المملكة.',
         'يذهب إليها الأطفال مشياً من الفلل دون عبور الطريق الرئيسي، وبجانبها ملعب الأطفال والحديقة.',
@@ -290,15 +299,27 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         return bestDir;
     }
 
+    /* villa pins: like his "villas near the school" photo, in front of the doors, 24° up */
+    const VILLA_PIN_ELEV = 24;
     function viewFor(h) {
         const target = toWorld([h.at[0], h.at[1] * 0.45, h.at[2]]);
-        const dist = Math.max(h.view * normScale, controls.minDistance * 1.2);
-        const elev = THREE.MathUtils.degToRad(Math.max(VIEW_ELEV, (h.minElev ?? DEFAULT_MIN_ELEV) + 2));
+        if (h.cam) {
+            /* prepared camera of this place */
+            const dist = Math.max(h.cam.dist * normScale, controls.minDistance * 1.2);
+            const elev = THREE.MathUtils.degToRad(h.cam.elev);
+            const dir = new THREE.Vector3(h.cam.dir[0], 0, h.cam.dir[1]).normalize();
+            const pos = target.clone()
+                .addScaledVector(dir, Math.cos(elev) * dist)
+                .add(new THREE.Vector3(0, Math.sin(elev) * dist, 0));
+            return { pos, target, dist, minElev: Math.max(5, h.cam.elev - 3) };
+        }
+        const dist = Math.max((h.villa ? h.view * 0.65 : h.view) * normScale, controls.minDistance * 1.2);
+        const elev = THREE.MathUtils.degToRad(h.villa ? VILLA_PIN_ELEV : Math.max(VIEW_ELEV, (h.minElev ?? DEFAULT_MIN_ELEV) + 2));
         const dir = viewDir({ target, dist, elev, villaArea: !!h.villa });
         const pos = target.clone()
             .addScaledVector(dir, Math.cos(elev) * dist)
             .add(new THREE.Vector3(0, Math.sin(elev) * dist, 0));
-        return { pos, target, dist };
+        return { pos, target, dist, minElev: h.villa ? VILLA_PIN_ELEV - 4 : h.minElev };
     }
 
     let current = null;
@@ -309,7 +330,7 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         if (!h.far) {
             const v = viewFor(h);
             unlock();
-            flyTo(v.pos, v.target, 3400, () => lockOn(v.dist, h.minElev), 0.3);
+            flyTo(v.pos, v.target, 3400, () => lockOn(v.dist, v.minElev), 0.3);
         } else if (wasOpen) {
             goHome();
         }
@@ -348,6 +369,19 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
 
     /* ---------- ?edit=1 : click the model to read coordinates for a new pin ---------- */
     if (editMode) {
+        /* C: copy the prepared camera ("cam") of the open place from the current view */
+        document.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() !== 'c' || !current || current.far) return;
+            const off = camera.position.clone().sub(controls.target);
+            const len = off.length();
+            const flat = Math.hypot(off.x, off.z) || 1;
+            const elev = Math.round(THREE.MathUtils.radToDeg(Math.asin(off.y / len)));
+            const txt = `cam: { dir: [${(off.x / flat).toFixed(3)}, ${(off.z / flat).toFixed(3)}], elev: ${elev}, dist: ${Math.round(len / normScale)} },  // ${current.id}`;
+            console.log('CAM', txt);
+            navigator.clipboard?.writeText(txt).catch(() => {});
+            const t = document.getElementById('editToast');
+            if (t) { t.textContent = txt + '  (copied)'; t.classList.add('show'); }
+        });
         const ray = new THREE.Raycaster();
         const ndc = new THREE.Vector2();
         let down = null;

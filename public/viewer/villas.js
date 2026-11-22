@@ -234,15 +234,11 @@ export function initVillas({ THREE, scene, camera, controls, renderer, root, nor
         const center = box.getCenter(new THREE.Vector3());
         const target = new THREE.Vector3(center.x, box.min.y + size.y * 0.45, center.z);
         /*
-         * Like Novoross: stop in front of the villa's street door, a little to the side (¾ view), 20°
-         * above the ground, far enough to see the whole facade and the neighbours (hotspots.viewDir).
-         */
-        /*
          * Same framing as the villa pins (the view he approved: "villas near the school"): straight in
-         * front of the villa's street door, 15° up, ~45 m away, so the whole villa and its neighbours show.
+         * front of the villa's street door, 24° up, ~45 m away, so the whole villa and its neighbours show.
          */
         const dist = Math.max(Math.max(size.x, size.z) * 2.5, controls.minDistance * 1.2);
-        const elev = THREE.MathUtils.degToRad(15);
+        const elev = THREE.MathUtils.degToRad(24);
         const dir = hotspots.viewDir({ target, dist, elev, shape: mesh.name });
         const pos = target.clone()
             .addScaledVector(dir, Math.cos(elev) * dist)
@@ -266,7 +262,7 @@ export function initVillas({ THREE, scene, camera, controls, renderer, root, nor
         hotspots.flyTo(view.pos, view.target, 3000, () => {
             approaching = false;
             /* turning around keeps this height (just above the roofs); zooming in only a little */
-            hotspots.lockOn(view.dist, 14, 0.7);
+            hotspots.lockOn(view.dist, 20, 0.7);
             if (enterWhenLanded && focusedId === unit.id) {
                 enterWhenLanded = false;
                 enter(unit);
