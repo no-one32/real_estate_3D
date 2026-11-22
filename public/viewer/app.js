@@ -5,7 +5,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { initHotspots } from './hotspots.js?v=15';
+import { initHotspots } from './hotspots.js?v=16';
 
 /* ------------------------------------------------------------------ *
  *  Device profile — same agreed settings as the previous viewer
@@ -94,10 +94,10 @@ const HORIZON = 0xc2d2e2;
  * Values are in scene units (the project is normalised to a ~100 unit radius, buildings ~8 high).
  */
 const FOG = {
-    density: 0.0018,   /* distance haze */
-    ground: 0.22,      /* ground mist strength (0 = none) */
-    height: 2.2,       /* how high the mist rises */
-    near: 160,         /* how fast the mist builds up with camera distance (bigger = lighter at the start view) */
+    density: 0.002,    /* distance haze */
+    ground: 0.32,      /* ground mist strength (0 = none) */
+    height: 2.4,       /* how high the mist rises */
+    near: 110,         /* how fast the mist builds up with camera distance (bigger = lighter at the start view) */
 };
 scene.fog = new THREE.FogExp2(HORIZON, FOG.density);
 
@@ -397,12 +397,15 @@ function startUnpacking() {
 }
 const loadStart = performance.now();
 let hotspots = null;
+let compiling = false;
 
 loader.load(
     MODEL_URL,
     (gltf) => {
         const root = gltf.scene;
         scene.add(root);
+        /* no drawing until the shaders are ready (see compileAsync below), so the page never freezes */
+        compiling = true;
 
         root.updateMatrixWorld(true);
         const totalBox = new THREE.Box3().setFromObject(root);
@@ -587,10 +590,20 @@ loader.load(
             console.log('VIEWER_INFO', JSON.stringify(window.__viewer.info));
         };
 
-        requestAnimationFrame(() => {
-            requestAnimationFrame(markReady);
-        });
-        setTimeout(markReady, 1500);
+        /*
+         * The model uses ~29 different shaders (one per kind of material). Before, they were all built
+         * on the first frame, which froze the page for a few seconds (the bar stuck at ~95%).
+         * compileAsync builds them in parallel in the background, then the model is shown.
+         */
+        let revealed = false;
+        const reveal = () => {
+            if (revealed) return;
+            revealed = true;
+            compiling = false;
+            requestAnimationFrame(() => requestAnimationFrame(markReady));
+        };
+        renderer.compileAsync(scene, camera).then(reveal, reveal);
+        setTimeout(reveal, 20000); /* safety net */
     },
     (xhr) => {
         /*
@@ -671,6 +684,7 @@ let slowTime = 0;
 let currentDpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
 
 renderer.setAnimationLoop(() => {
+    if (compiling) return;
     if (!hotspots || !hotspots.isFlying()) controls.update();
     hotspots?.update();
     updateShadowFrustum();

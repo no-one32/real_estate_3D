@@ -229,7 +229,7 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         if (!h.far) {
             const v = viewFor(h);
             unlock();
-            flyTo(v.pos, v.target, 2800, () => lockOn(v.dist, h.minElev), 0.35);
+            flyTo(v.pos, v.target, 2600, () => lockOn(v.dist, h.minElev), 0.18);
         } else if (wasOpen) {
             goHome();
         }
@@ -318,7 +318,7 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
                 camera.position.setFromSpherical(_sph).add(_c);
                 /* look a little beside the place, in the direction the camera is offset, then back onto it */
                 _side.set(Math.cos(_sph.theta), 0, -Math.sin(_sph.theta))
-                    .multiplyScalar(_sph.radius * 0.22 * side * Math.sign(flight.spin));
+                    .multiplyScalar(_sph.radius * 0.1 * side * Math.sign(flight.spin));
                 controls.target.copy(_c).add(_side);
             } else {
                 controls.target.lerpVectors(flight.t0, flight.t1, e);
