@@ -46,12 +46,6 @@ export const HOTSPOTS = [
         'في داخله مساحات للأنشطة واللقاءات، ويطل على الحديقة المركزية على مسافة مشي من الفلل.',
       ],
       facts: ['ملاعب على السطح', 'بجانب المسجد', 'يطل على الحديقة'] },
-    { id: 'park', icon: 'park', title: 'الحديقة', at: [17960, 15, -1950], view: 6000,
-      text: [
-        'الرئة الخضراء للمشروع بين المسجد والمدرسة: ممرات متعرّجة للمشي ومسطحات عشبية وأشجار نخيل.',
-        'مكان آمن للأطفال وللجلوس مع العائلة، بعيداً عن حركة السيارات، ويصل إليه الجميع خلال دقائق مشياً.',
-      ],
-      facts: ['ممرات للمشي', 'أشجار نخيل', 'مسطحات خضراء', 'بين المسجد والمدرسة'] },
     { id: 'school', icon: 'school', title: 'المدرسة', at: [11900, 412, -800], view: 6000,
       text: [
         'مدرسة داخل المشروع من مبنيين تتوسطهما ساحة واسعة يرتفع فيها علم المملكة.',
@@ -64,18 +58,6 @@ export const HOTSPOTS = [
         'تحيط بها الأشجار والعشب، بجانب المدرسة وعلى مسافة قصيرة من الفلل، تحت نظر الأهل.',
       ],
       facts: ['مسوّر وآمن', 'أرضية رملية', 'زحاليق وألعاب', 'بجانب المدرسة'] },
-    { id: 'road', icon: 'road', title: 'الطريق الرئيسي', at: [38800, 17, 6900], view: 14000,
-      text: [
-        'الطريق العريض الذي يحيط بالمشروع ويمر بمحاذاة البحيرة، ويتصل بشوارع المدينة وبطريق أبها.',
-        'تبقى حركة السيارات على الأطراف، فتبقى الشوارع الداخلية هادئة وآمنة.',
-      ],
-      facts: ['على طرف المشروع', 'مشجّر', 'بمحاذاة البحيرة', 'سهولة الوصول بالسيارة'] },
-    { id: 'lake', icon: 'water', title: 'البحيرة', at: [38500, -88, -3000], view: 18000,
-      text: [
-        'واجهة مائية واسعة على الجانب الشرقي من المشروع تضفي هدوءاً وتلطّف الجو.',
-        'تطل عليها الفلل القريبة، ويتنزه السكان على ضفتها في الصباح والمساء.',
-      ],
-      facts: ['على الجانب الشرقي', 'إطلالة مفتوحة', 'على طول الطريق الرئيسي'] },
     { id: 'villas-north', icon: 'home', title: 'فلل قرب المسجد', at: [10600, 1060, -15800], view: 9000, villa: true,
       text: [
         'فلل في شوارع داخلية هادئة قريبة من المسجد والمركز الرياضي، والحديقة والمدرسة على بُعد دقائق.',
@@ -161,6 +143,7 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
 
     /* ---------- camera flight ---------- */
     let flight = null;
+    const _sph = new THREE.Spherical();
     const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
     /*
@@ -188,7 +171,8 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         Object.assign(controls, free);
     }
 
-    function flyTo(pos, target, ms = 1600, onDone = null) {
+    /* spin: extra turn (radians) around the place during the end of the flight */
+    function flyTo(pos, target, ms = 1600, onDone = null, spin = 0) {
         /* drop the rotation still gliding from the last drag, so it does not carry on after the flight */
         const damp = controls.enableDamping;
         controls.enableDamping = false;
@@ -196,8 +180,18 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         controls.enableDamping = damp;
         flight = {
             p0: camera.position.clone(), t0: controls.target.clone(),
-            p1: pos, t1: target, start: performance.now(), ms, onDone,
+            p1: pos, t1: target, start: performance.now(), ms, onDone, spin,
         };
+        if (spin) {
+            /* spherical description of the start / end camera offsets around their targets */
+            const s0 = new THREE.Spherical().setFromVector3(flight.p0.clone().sub(flight.t0));
+            const s1 = new THREE.Spherical().setFromVector3(pos.clone().sub(target));
+            let dTheta = s1.theta - s0.theta;
+            dTheta = Math.atan2(Math.sin(dTheta), Math.cos(dTheta)); /* shortest way round */
+            flight.s0 = s0;
+            flight.s1 = s1;
+            flight.dTheta = dTheta;
+        }
         controls.enabled = false;
     }
 
@@ -223,7 +217,7 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         if (!h.far) {
             const v = viewFor(h);
             unlock();
-            flyTo(v.pos, v.target, 1600, () => lockOn(v.dist, h.minElev));
+            flyTo(v.pos, v.target, 2300, () => lockOn(v.dist, h.minElev), 0.6);
         } else if (wasOpen) {
             goHome();
         }
@@ -292,8 +286,21 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         if (flight) {
             const k = Math.min(1, (performance.now() - flight.start) / flight.ms);
             const e = ease(k);
-            camera.position.lerpVectors(flight.p0, flight.p1, e);
             controls.target.lerpVectors(flight.t0, flight.t1, e);
+            if (flight.spin) {
+                /*
+                 * Approach first, then a short turn around the place while settling (instead of going
+                 * straight to the point): the last ~45% of the flight sweeps `spin` radians.
+                 */
+                const late = THREE.MathUtils.smoothstep(k, 0.45, 1);
+                const { s0, s1 } = flight;
+                _sph.radius = s0.radius * Math.pow(s1.radius / s0.radius, e);
+                _sph.phi = s0.phi + (s1.phi - s0.phi) * e;
+                _sph.theta = s0.theta + (flight.dTheta - flight.spin) * e + flight.spin * late;
+                camera.position.setFromSpherical(_sph).add(controls.target);
+            } else {
+                camera.position.lerpVectors(flight.p0, flight.p1, e);
+            }
             camera.lookAt(controls.target);
             if (k >= 1) {
                 const done = flight.onDone;

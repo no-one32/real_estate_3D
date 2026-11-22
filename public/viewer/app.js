@@ -5,7 +5,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { initHotspots } from './hotspots.js?v=12';
+import { initHotspots } from './hotspots.js?v=13';
 
 /* ------------------------------------------------------------------ *
  *  Device profile — same agreed settings as the previous viewer
@@ -73,7 +73,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
  * Neutral keeps the real colours of the materials (white walls stay white, grass stays green).
  */
 renderer.toneMapping = THREE.NeutralToneMapping;
-renderer.toneMappingExposure = 1.0;
+renderer.toneMappingExposure = 1.25; /* brighter, as asked */
 renderer.shadowMap.enabled = ENABLE_SHADOWS;
 /* PCFSoft costs extra taps; the phone gets the cheaper PCF filter. */
 renderer.shadowMap.type = IS_MOBILE ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
@@ -85,7 +85,8 @@ container.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 
 const HORIZON = 0xc2d2e2;
-scene.fog = new THREE.FogExp2(HORIZON, 0.00055);
+/* light haze: barely there close up, stronger as you move away (distance-based) */
+scene.fog = new THREE.FogExp2(HORIZON, 0.0009);
 
 function makeSkyTexture() {
     const canvas = document.createElement('canvas');
@@ -119,10 +120,11 @@ controls.enableDamping = true;
  * How long the view keeps gliding after the mouse / finger is released. 0.07 glided ~14× the last
  * movement (it went too far past where you stopped); 0.18 keeps a short, soft glide (~5×).
  */
-controls.dampingFactor = 0.18;
-controls.rotateSpeed = 0.75;
-controls.zoomSpeed = 0.9;
-controls.panSpeed = 0.8;
+controls.dampingFactor = 0.16;
+/* calmer, steadier handling (like the reference site): less turn / zoom per mouse movement */
+controls.rotateSpeed = 0.42;
+controls.zoomSpeed = 0.6;
+controls.panSpeed = 0.55;
 controls.screenSpacePanning = false;
 controls.minPolarAngle = 0.06;
 controls.maxPolarAngle = Math.PI * 0.495;
@@ -181,7 +183,7 @@ scene.add(sun.target);
 
 /* Cool sky bounce, kept low so the sun keeps the contrast. */
 /* sky / ground fill: enough that the sides away from the sun are not black */
-const hemi = new THREE.HemisphereLight(0xdfeaf7, 0x8a7f70, 0.6);
+const hemi = new THREE.HemisphereLight(0xdfeaf7, 0x8a7f70, 0.75);
 scene.add(hemi);
 
 const pmrem = new THREE.PMREMGenerator(renderer);
@@ -289,9 +291,9 @@ function applySun(t, forceShadow) {
     sun.color.copy(_sunColor);
 
     /* softer swing between morning and noon: morning / evening stay readable, noon is not burnt */
-    sun.intensity = 2.2 + 1.6 * Math.pow(k, 0.75);
-    hemi.intensity = 0.45 + 0.2 * k;
-    scene.environmentIntensity = 0.6 + 0.3 * k;
+    sun.intensity = 2.6 + 1.6 * Math.pow(k, 0.75);
+    hemi.intensity = 0.6 + 0.25 * k;
+    scene.environmentIntensity = 0.75 + 0.3 * k;
     scene.backgroundIntensity = 0.6 + 0.4 * k;
     scene.fog.color.copy(DUSK_FOG).lerp(DAY_FOG, Math.min(1, k * 1.7));
 
@@ -519,8 +521,13 @@ loader.load(
         setTimeout(markReady, 1500);
     },
     (xhr) => {
-        if (xhr && xhr.total) {
-            const pct = Math.min(99, Math.round((xhr.loaded / xhr.total) * 100));
+        /*
+         * The host sends the model compressed, so the browser often gets no total size and only the
+         * MB counter moved (0.1, 0.2 …). Fall back to the known size of the file to show a percentage.
+         */
+        const total = (xhr && xhr.total) || (MODEL_URL.endsWith('FINAL.glb') ? 14049276 : 0);
+        if (xhr && total) {
+            const pct = Math.min(99, Math.round((xhr.loaded / total) * 100));
             barEl.style.width = pct + '%';
             pctEl.textContent = pct + '%';
         } else if (xhr && xhr.loaded) {

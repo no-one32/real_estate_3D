@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0b1220">
+<link rel="preload" href="/models/FINAL.glb" as="fetch" crossorigin="anonymous">
 <title>المشروع ثلاثي الأبعاد — النسخة الأخيرة</title>
 <style>
   :root { color-scheme: dark; }
@@ -259,11 +260,6 @@
 <nav id="places" aria-label="الأماكن"></nav>
 <div id="hcard" role="dialog" aria-live="polite"></div>
 <div id="editToast"></div>
-
-<div id="sunpanel" title="موضع الشمس">
-  <span id="sunicon">☀</span>
-  <input id="sunRange" type="range" min="0" max="1000" step="1" value="380" aria-label="موضع الشمس">
-  <span id="sunTime">10:34</span>
 </div>
 
 <div id="hint">اضغط على أي مكان للاقتراب منه • اسحب للدوران • إصبعان للتكبير</div>
@@ -276,6 +272,6 @@
   }
 }
 </script>
-<script type="module" src="./app.js?v=21"></script>
+<script type="module" src="./app.js?v=22"></script>
 </body>
 </html>
