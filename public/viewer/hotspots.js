@@ -82,7 +82,7 @@ export const HOTSPOTS = [
         'ثلاثة نماذج من طابقين مع سطح: 200 م² و4 غرف نوم، 250 م² و5 غرف، 300 م² و6 غرف، ولكل نموذج تصميمان للواجهة (A وB).',
       ],
       facts: ['قريبة من الحديقة', 'قريبة من مخرج المشروع', 'قرب البحيرة'] },
-    { id: 'airport', icon: 'plane', title: 'مطار أبها الدولي', at: [-95990, 0, -80530], far: true, snap: true,
+    { id: 'airport', icon: 'plane', title: 'مطار أبها الدولي', at: [-61215, 0, -6881], far: true, snap: true,
       text: [
         'المطار الرئيسي في منطقة عسير، على بُعد نحو 25 دقيقة بالسيارة من المشروع.',
         'رحلات داخلية منتظمة إلى الرياض وجدة والدمام، إضافة إلى رحلات دولية.',
@@ -155,7 +155,8 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
 
     /* ---------- camera flight ---------- */
     let flight = null;
-    const _sph = new THREE.Spherical();
+    const _off = new THREE.Vector3();
+    const _up = new THREE.Vector3(0, 1, 0);
     const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
     const easeInOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
     const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -175,14 +176,14 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         zoomSpeed: controls.zoomSpeed,
         dampingFactor: controls.dampingFactor,
     };
-    function lockOn(dist, minElev = DEFAULT_MIN_ELEV) {
+    function lockOn(dist, minElev = DEFAULT_MIN_ELEV, minDistFactor = 0.5) {
         controls.enablePan = false;
         /* close to a place: the earlier handling, which felt right there */
         controls.rotateSpeed = 0.75;
         controls.zoomSpeed = 0.9;
         controls.dampingFactor = 0.18;
         /* not closer than half the arrival distance: seen this low, closer would go between the villas */
-        controls.minDistance = Math.max(0.5, dist * 0.5);
+        controls.minDistance = Math.max(0.5, dist * minDistFactor);
         controls.maxDistance = dist * 1.7;
         /*
          * Turning around the place keeps the camera at least `minElev` above the ground (20° by default,
@@ -206,18 +207,8 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
             p1: pos, t1: target, start: performance.now(), ms, onDone, spin,
         };
         if (spin) {
-            /* spherical description of the start / end camera offsets around their targets */
-            const s0 = new THREE.Spherical().setFromVector3(flight.p0.clone().sub(flight.t0));
-            const s1 = new THREE.Spherical().setFromVector3(pos.clone().sub(target));
-            /*
-             * The approach ends `spin` short of the final angle, then the last turn brings the camera
-             * exactly onto the chosen view (before, the turn went past it: you ended on the side).
-             */
-            let dTheta = s1.theta - spin - s0.theta;
-            dTheta = Math.atan2(Math.sin(dTheta), Math.cos(dTheta)); /* shortest way round */
-            flight.s0 = s0;
-            flight.s1 = s1;
-            flight.dTheta = dTheta;
+            /* the straight approach ends `spin` short of the final view; the last turn lands exactly on it */
+            flight.pPre = target.clone().add(pos.clone().sub(target).applyAxisAngle(_up, -spin));
         }
         controls.enabled = false;
     }
@@ -226,8 +217,9 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
      * Arrival angle when a pin is clicked: 22° above the ground, so you see the fronts of the houses
      * (35° before showed mostly the roofs). Places with a tall building next to them (minElev) stay higher.
      */
-    const DEFAULT_MIN_ELEV = 20;
-    const VIEW_ELEV = 22;
+    /* lower than before (22°): the camera arrives nearly at eye level of the facades */
+    const DEFAULT_MIN_ELEV = 13;
+    const VIEW_ELEV = 15;
 
     /* ---------- best viewpoint (like the prepared cameras of Novoross) ---------- */
     /*
@@ -243,7 +235,7 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         }
     });
     const UP = new THREE.Vector3(0, 1, 0);
-    const THREE_QUARTER = THREE.MathUtils.degToRad(25); /* a bit to the side of the facade: front + depth */
+    const THREE_QUARTER = 0; /* straight in front of the facade (asked: face the place directly) */
 
     function currentDir() {
         const d = camera.position.clone().sub(controls.target).setY(0);
@@ -317,7 +309,7 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         if (!h.far) {
             const v = viewFor(h);
             unlock();
-            flyTo(v.pos, v.target, 3400, () => lockOn(v.dist, h.minElev), 0.65);
+            flyTo(v.pos, v.target, 3400, () => lockOn(v.dist, h.minElev), 0.3);
         } else if (wasOpen) {
             goHome();
         }
@@ -388,21 +380,18 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
             const e = ease(k);
             if (flight.spin) {
                 /*
-                 * Click on a pin: the camera flies in to the place, then turns around it
-                 * (~37°, always the same way) while keeping the place in the centre, and slows down to a
-                 * soft stop. The old version swung out and came back to the same angle, so it looked
-                 * like there was no rotation at the end.
-                 *   a:    the approach (done at 60% of the flight, slowing down)
-                 *   turn: the rotation around the place (from 40% to the end, soft start and stop)
+                 * Click on a pin / a house: the camera flies in a straight line toward the front of the
+                 * place (no more swinging around it, which looked strange when the front was on the other
+                 * side), then a small turn at the end (~17°) settles it exactly in front, softly.
+                 *   a:    the approach (done at 70% of the flight, slowing down)
+                 *   turn: the last small turn (from 45% to the end, soft start and stop)
                  */
-                const a = easeOutCubic(Math.min(1, k / 0.6));
-                const turn = easeInOutSine(THREE.MathUtils.clamp((k - 0.4) / 0.6, 0, 1));
-                const { s0, s1 } = flight;
+                const a = easeOutCubic(Math.min(1, k / 0.7));
+                const turn = easeInOutSine(THREE.MathUtils.clamp((k - 0.45) / 0.55, 0, 1));
                 controls.target.lerpVectors(flight.t0, flight.t1, a);
-                _sph.radius = s0.radius * Math.pow(s1.radius / s0.radius, a);
-                _sph.phi = s0.phi + (s1.phi - s0.phi) * a;
-                _sph.theta = s0.theta + flight.dTheta * a + flight.spin * turn;
-                camera.position.setFromSpherical(_sph).add(controls.target);
+                _off.lerpVectors(flight.p0, flight.pPre, a).sub(controls.target)
+                    .applyAxisAngle(_up, flight.spin * turn);
+                camera.position.copy(controls.target).add(_off);
             } else {
                 controls.target.lerpVectors(flight.t0, flight.t1, e);
                 camera.position.lerpVectors(flight.p0, flight.p1, e);

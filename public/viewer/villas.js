@@ -237,8 +237,12 @@ export function initVillas({ THREE, scene, camera, controls, renderer, root, nor
          * Like Novoross: stop in front of the villa's street door, a little to the side (¾ view), 20°
          * above the ground, far enough to see the whole facade and the neighbours (hotspots.viewDir).
          */
-        const dist = Math.max(Math.max(size.x, size.z) * 2.8, controls.minDistance * 1.2);
-        const elev = THREE.MathUtils.degToRad(20);
+        /*
+         * Straight in front of the facade, low: ~29 m away and 14° up (camera ~12 m high, just above the
+         * roofs across the street), so the whole front of the house fills the view.
+         */
+        const dist = Math.max(Math.max(size.x, size.z) * 1.6, controls.minDistance * 1.2);
+        const elev = THREE.MathUtils.degToRad(14);
         const dir = hotspots.viewDir({ target, dist, elev, shape: mesh.name });
         const pos = target.clone()
             .addScaledVector(dir, Math.cos(elev) * dist)
@@ -261,12 +265,13 @@ export function initVillas({ THREE, scene, camera, controls, renderer, root, nor
         hotspots.unlock();
         hotspots.flyTo(view.pos, view.target, 3000, () => {
             approaching = false;
-            hotspots.lockOn(view.dist, 20);
+            /* turning around keeps this height (just above the roofs); zooming in only a little */
+            hotspots.lockOn(view.dist, 14, 0.85);
             if (enterWhenLanded && focusedId === unit.id) {
                 enterWhenLanded = false;
                 enter(unit);
             }
-        }, 0.65);
+        }, 0.3);
     }
 
     /* same as ComplexApp.pickUnit */
