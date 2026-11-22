@@ -144,6 +144,8 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
     /* ---------- camera flight ---------- */
     let flight = null;
     const _sph = new THREE.Spherical();
+    const _c = new THREE.Vector3();
+    const _side = new THREE.Vector3();
     const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
     const easeInOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
     const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -181,7 +183,7 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         Object.assign(controls, free);
     }
 
-    /* spin: extra turn (radians) around the place during the end of the flight */
+    /* spin: how far (radians) the camera swings to the side of the place before turning back onto it */
     function flyTo(pos, target, ms = 1600, onDone = null, spin = 0) {
         /* drop the rotation still gliding from the last drag, so it does not carry on after the flight */
         const damp = controls.enableDamping;
@@ -227,7 +229,7 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         if (!h.far) {
             const v = viewFor(h);
             unlock();
-            flyTo(v.pos, v.target, 2600, () => lockOn(v.dist, h.minElev), 0.5);
+            flyTo(v.pos, v.target, 2800, () => lockOn(v.dist, h.minElev), 0.35);
         } else if (wasOpen) {
             goHome();
         }
@@ -296,21 +298,30 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         if (flight) {
             const k = Math.min(1, (performance.now() - flight.start) / flight.ms);
             const e = ease(k);
-            controls.target.lerpVectors(flight.t0, flight.t1, flight.spin ? easeOutCubic(Math.min(1, k / 0.8)) : e);
             if (flight.spin) {
                 /*
-                 * Approach, then a gentle turn around the place as the camera arrives: always in one
-                 * direction (the old version turned one way then back), starting slowly once most of the
-                 * approach is done and slowing down to a soft stop.
+                 * Click on a pin: the camera flies in towards a spot slightly to the side of the place
+                 * (looking a little beside it), then at the end it turns back around onto the place
+                 * with a small rotation and stops with the place in the centre.
+                 *   a: the approach (0 -> 1 by 75% of the flight)
+                 *   b: the final turn back onto the place (from 55% to the end)
+                 * (a - b) rises then falls back to 0: the side offset is gone when the flight ends.
                  */
-                const turn = easeInOutSine(THREE.MathUtils.clamp((k - 0.3) / 0.7, 0, 1));
+                const a = ease(Math.min(1, k / 0.75));
+                const b = easeInOutSine(THREE.MathUtils.clamp((k - 0.55) / 0.45, 0, 1));
+                const side = a - b;
                 const { s0, s1 } = flight;
-                const ap = easeOutCubic(Math.min(1, k / 0.8)); /* approach finishes at 80% */
-                _sph.radius = s0.radius * Math.pow(s1.radius / s0.radius, ap);
-                _sph.phi = s0.phi + (s1.phi - s0.phi) * ap;
-                _sph.theta = s0.theta + flight.dTheta * ap + flight.spin * turn;
-                camera.position.setFromSpherical(_sph).add(controls.target);
+                _c.lerpVectors(flight.t0, flight.t1, a);
+                _sph.radius = s0.radius * Math.pow(s1.radius / s0.radius, a);
+                _sph.phi = s0.phi + (s1.phi - s0.phi) * a;
+                _sph.theta = s0.theta + flight.dTheta * a + flight.spin * side;
+                camera.position.setFromSpherical(_sph).add(_c);
+                /* look a little beside the place, in the direction the camera is offset, then back onto it */
+                _side.set(Math.cos(_sph.theta), 0, -Math.sin(_sph.theta))
+                    .multiplyScalar(_sph.radius * 0.22 * side * Math.sign(flight.spin));
+                controls.target.copy(_c).add(_side);
             } else {
+                controls.target.lerpVectors(flight.t0, flight.t1, e);
                 camera.position.lerpVectors(flight.p0, flight.p1, e);
             }
             camera.lookAt(controls.target);

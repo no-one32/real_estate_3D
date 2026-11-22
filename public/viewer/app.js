@@ -5,7 +5,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { initHotspots } from './hotspots.js?v=14';
+import { initHotspots } from './hotspots.js?v=15';
 
 /* ------------------------------------------------------------------ *
  *  Device profile — same agreed settings as the previous viewer
@@ -94,10 +94,10 @@ const HORIZON = 0xc2d2e2;
  * Values are in scene units (the project is normalised to a ~100 unit radius, buildings ~8 high).
  */
 const FOG = {
-    density: 0.0022,   /* distance haze */
-    ground: 0.42,      /* ground mist strength (0 = none) */
+    density: 0.0018,   /* distance haze */
+    ground: 0.22,      /* ground mist strength (0 = none) */
     height: 2.2,       /* how high the mist rises */
-    near: 70,          /* how fast the mist builds up with camera distance */
+    near: 160,         /* how fast the mist builds up with camera distance (bigger = lighter at the start view) */
 };
 scene.fog = new THREE.FogExp2(HORIZON, FOG.density);
 
@@ -368,8 +368,8 @@ loader.setMeshoptDecoder(MeshoptDecoder);
 /* FINAL.glb is Draco-compressed: decoder files live in /draco/ */
 const draco = new DRACOLoader();
 draco.setDecoderPath('/draco/');
-/* unpack the meshes on more CPU cores at once (default 4) */
-draco.setWorkerLimit(Math.min(8, Math.max(2, (navigator.hardwareConcurrency || 4) - 1)));
+/* unpack the meshes on more CPU cores at once: never fewer than the default 4, up to 8 on big computers */
+draco.setWorkerLimit(Math.min(8, Math.max(4, (navigator.hardwareConcurrency || 4) - 1)));
 draco.preload();
 loader.setDRACOLoader(draco);
 
