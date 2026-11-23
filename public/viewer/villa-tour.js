@@ -325,6 +325,8 @@ function createSpin360(parent, tour, type, startFolder) {
         for (let d = 1; d <= 4; d++) { ensureFrame(center + d); ensureFrame(center - d); }
     }
 
+    const ready = (i) => { const img = images[i]; return Boolean(img?.complete && img.naturalWidth); };
+
     function show() {
         const idx = idxOf(pos);
         const headingDeg = n > 0 ? (pos / n) * 360 : 0;
@@ -332,9 +334,21 @@ function createSpin360(parent, tour, type, startFolder) {
         ptr.style.transform = `rotate(${headingDeg}deg)`;
         dirEl.textContent = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(normDeg / 45) % 8];
         warmAround(idx);
-        const img = images[idx];
-        if (img?.complete && img.naturalWidth) { setLoading(false); draw(idx); } else setLoading(true);
+        if (ready(idx)) { setLoading(false); draw(idx); return; }
+        /* frame not downloaded yet: keep turning on the nearest one we have instead of freezing;
+           the real frame replaces it as soon as it arrives (ensureFrame draws it) */
+        for (let d = 1; d <= n / 2; d++) {
+            const near = ready(idxOf(idx + d)) ? idxOf(idx + d) : ready(idxOf(idx - d)) ? idxOf(idx - d) : -1;
+            if (near >= 0) { setLoading(false); draw(near); return; }
+        }
+        setLoading(true); /* nothing of this floor yet (first opening) */
     }
+
+    /* draw at most once per screen refresh, however many moves arrive in between */
+    let showQueued = 0;
+    const requestShow = () => {
+        if (!showQueued) showQueued = requestAnimationFrame(() => { showQueued = 0; if (!stopped) show(); });
+    };
 
     function loadFloor() {
         generation += 1;
@@ -358,22 +372,77 @@ function createSpin360(parent, tour, type, startFolder) {
         for (let w = 0; w < 4; w++) void worker();
     }
 
-    const spin = (dir) => { if (n > 0) { pos += dir; show(); } };
+    const spin = (dir) => { if (n > 0) { pos += dir; requestShow(); } };
+
+    /* turning by pixels: the house follows the finger exactly (fast swipe = several frames),
+       the leftover pixels are kept so slow drags stay precise */
+    const STEP_PX = 8;                 /* pixels per frame, as before */
+    let acc = 0;
+    function turnBy(px) {
+        if (!n) return;
+        acc += px;
+        const frames = Math.trunc(acc / STEP_PX);
+        if (frames) { acc -= frames * STEP_PX; pos += frames; requestShow(); }
+    }
+
+    /* momentum after letting go */
+    let velocity = 0;                  /* px per ms, in "turn" direction */
+    let glide = 0;
+    const stopGlide = () => { if (glide) { cancelAnimationFrame(glide); glide = 0; } };
+    function startGlide() {
+        stopGlide();
+        if (Math.abs(velocity) < 0.15) return;
+        let last = performance.now();
+        const step = (now) => {
+            const dt = Math.min(48, now - last);
+            last = now;
+            turnBy(velocity * dt);
+            velocity *= Math.pow(0.93, dt / 16.7);
+            glide = !stopped && Math.abs(velocity) > 0.03 ? requestAnimationFrame(step) : 0;
+        };
+        glide = requestAnimationFrame(step);
+    }
 
     /* drag: the house follows the finger */
-    let dragging = false, startX = 0;
+    let dragging = false, lastX = 0, lastT = 0;
     wrap.addEventListener('pointerdown', (e) => {
         if (e.target.closest('.compass')) return;
+        stopGlide();
         dragging = true;
-        startX = e.clientX;
+        lastX = e.clientX;
+        lastT = performance.now();
+        velocity = 0;
+        acc = 0;
         e.target.setPointerCapture?.(e.pointerId);
     });
-    wrap.addEventListener('pointerup', () => { dragging = false; });
+    const endDrag = () => {
+        if (!dragging) return;
+        dragging = false;
+        if (performance.now() - lastT > 80) velocity = 0; /* finger stopped before lifting: no glide */
+        startGlide();
+    };
+    wrap.addEventListener('pointerup', endDrag);
+    wrap.addEventListener('pointercancel', endDrag);
     wrap.addEventListener('pointermove', (e) => {
         if (!dragging) return;
-        const d = e.clientX - startX;
-        if (Math.abs(d) > 8) { spin(d > 0 ? -1 : 1); startX = e.clientX; }
+        const now = performance.now();
+        const px = -(e.clientX - lastX); /* finger right → house turns the same way as before */
+        const dt = Math.max(1, now - lastT);
+        velocity = velocity * 0.6 + (px / dt) * 0.4; /* smoothed speed for the glide */
+        lastX = e.clientX;
+        lastT = now;
+        turnBy(px);
     });
+
+    /* mouse wheel / trackpad turns the house too */
+    const onWheel = (e) => {
+        if (e.target.closest('.compass')) return;
+        e.preventDefault();
+        stopGlide();
+        const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+        turnBy((e.deltaMode === 1 ? d * 16 : d) * 0.5);
+    };
+    wrap.addEventListener('wheel', onWheel, { passive: false });
 
     /* arrows: hold to keep turning */
     let hold = null;
@@ -384,6 +453,7 @@ function createSpin360(parent, tour, type, startFolder) {
             e.preventDefault();
             e.stopPropagation();
             stopHold();
+            stopGlide();
             b.setPointerCapture?.(e.pointerId);
             spin(dir);
             hold = setInterval(() => spin(dir), 70);
@@ -409,6 +479,9 @@ function createSpin360(parent, tour, type, startFolder) {
         dispose() {
             stopped = true;
             stopHold();
+            stopGlide();
+            if (showQueued) cancelAnimationFrame(showQueued);
+            wrap.removeEventListener('wheel', onWheel);
             window.removeEventListener('resize', onResize);
             ro?.disconnect();
             wrap.remove();
