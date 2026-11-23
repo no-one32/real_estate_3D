@@ -6,7 +6,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { initHotspots } from './hotspots.js?v=34';
-import { initVillas, isVillaShape } from './villas.js?v=7';
+import { initVillas, isVillaShape } from './villas.js?v=8';
 
 /* ------------------------------------------------------------------ *
  *  Device profile — same agreed settings as the previous viewer
@@ -25,8 +25,16 @@ const IS_MOBILE = FORCE_MOBILE || (() => {
         (navigator.maxTouchPoints > 1 && window.matchMedia('(pointer: coarse)').matches);
 })();
 
-/* phone: 1.5 (was 1, looked blurry on 2x/3x screens); the frame-rate guard below lowers it if the phone is slow */
-const MAX_DPR = 1.5;
+/*
+ * Sharpness (device pixels per CSS pixel). Phone: up to 2.25 (sharp on 2x/3x screens), never under 1.25;
+ * computer: up to 1.5, never under 1. The frame-rate guard in the render loop moves between the two.
+ * ?dpr=1.5 forces another ceiling (?dpr=1 = emergency low resolution).
+ */
+const DPR_PARAM = parseFloat(params.get('dpr'));
+const MAX_DPR = DPR_PARAM > 0 ? DPR_PARAM : (IS_MOBILE ? 2.25 : 1.5);
+const MIN_DPR = Math.min(MAX_DPR, IS_MOBILE ? 1.25 : 1);
+/* never sharper than the screen itself */
+const dprCeiling = () => Math.min(window.devicePixelRatio || 1, MAX_DPR);
 const ANISOTROPY = IS_MOBILE ? 4 : 8;
 const ENABLE_SHADOWS = params.get('shadows') === '0' ? false : true;
 const ENABLE_TRANSMISSION = params.get('trans') === '1'
@@ -34,7 +42,12 @@ const ENABLE_TRANSMISSION = params.get('trans') === '1'
     : params.get('trans') === '0'
         ? false
         : !IS_MOBILE;
-const USE_LOG_DEPTH = params.get('logdepth') !== '0';
+/* log depth: extra shader maths on every pixel; off on phones (?logdepth=1 forces it on) */
+const USE_LOG_DEPTH = params.get('logdepth') === '1' ? true : params.get('logdepth') === '0' ? false : !IS_MOBILE;
+/* phone shadows: small map, smaller area, rebuilt only once the camera is still */
+const SHADOW_MAP_SIZE = IS_MOBILE ? 512 : 2048;
+const SHADOW_MAX_RADIUS = IS_MOBILE ? 80 : 160;
+const SHADOW_IDLE_MS = 150;
 
 /* ------------------------------------------------------------------ *
  *  DOM helpers
@@ -73,7 +86,7 @@ try {
     throw err;
 }
 
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_DPR));
+renderer.setPixelRatio(dprCeiling());
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 /*
@@ -88,8 +101,10 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.NeutralToneMapping;
 renderer.toneMappingExposure = 1.25;
 renderer.shadowMap.enabled = ENABLE_SHADOWS;
-/* PCFSoft costs extra taps; the phone gets the cheaper PCF filter. */
-renderer.shadowMap.type = IS_MOBILE ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+/* PCF everywhere, with a small soft edge (shadow.radius below) */
+renderer.shadowMap.type = THREE.PCFShadowMap;
+/* the shadow map is redrawn only when the sun's view of the scene moves (see shadowDirty) */
+renderer.shadowMap.autoUpdate = false;
 container.appendChild(renderer.domElement);
 
 /* ------------------------------------------------------------------ *
@@ -176,22 +191,21 @@ const SUN = {
 const SUN_FIXED_DIR = (() => {
     /*
      * Asked: the sun placed low like at sunset (long shadows that clearly show), but the light kept as
-     * bright and white as at midday. 18° above the horizon, from the front-right of the opening view,
-     * so the shadows fall across the streets on the side the camera sees.
+     * bright and white as at midday. 18° above the horizon. Azimuth 121° = the old -19° mirrored across
+     * the opening view: the sun is on the left of the screen, the shadows fall to the right.
      */
-    const el = THREE.MathUtils.degToRad(18), az = THREE.MathUtils.degToRad(-19);
+    const el = THREE.MathUtils.degToRad(18), az = THREE.MathUtils.degToRad(121);
     return new THREE.Vector3(Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az));
 })();
 
-const sun = new THREE.DirectionalLight(NOON_COLOR, 6.0);
+const sun = new THREE.DirectionalLight(NOON_COLOR, 6.5);
 sun.target.position.set(0, 0, 0);
 sun.castShadow = ENABLE_SHADOWS;
 if (ENABLE_SHADOWS) {
-    const mapSize = 2048; /* same on the phone: 1024 made the house shadows blurry / faint */
-    sun.shadow.mapSize.set(mapSize, mapSize);
+    sun.shadow.mapSize.set(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
     sun.shadow.bias = -0.00006;
     sun.shadow.normalBias = 0.08;
-    sun.shadow.radius = 1.6;
+    sun.shadow.radius = IS_MOBILE ? 2.2 : 1.6;
     /* clearly visible house shadows (the sky light still keeps them from being black) */
     sun.shadow.intensity = 0.9; /* clearly visible, not black (the sky still lights the shade) */
     const sc = sun.shadow.camera;
@@ -240,6 +254,10 @@ new RGBELoader().load(
 
 
 let shadowFrustumDist = -1;
+/* the shadow map needs redrawing (the sun's frustum moved) and when that last happened */
+let shadowDirty = true;
+let shadowDrawn = false;   /* the very first shadow map is drawn at once (an empty one would darken everything) */
+let lastShadowMotion = 0;
 const _lf = new THREE.Vector3(), _lu = new THREE.Vector3(), _lr = new THREE.Vector3(), _lc = new THREE.Vector3();
 const shadowFrustumTarget = new THREE.Vector3(Infinity, Infinity, Infinity);
 
@@ -256,7 +274,7 @@ function updateShadowFrustum(force) {
     if (!force && Math.abs(dist - shadowFrustumDist) < 0.5 && !targetMoved) return;
 
     /* quantise the radius so the shadow map does not "breathe" while zooming */
-    const R = THREE.MathUtils.clamp(Math.ceil((dist * 0.95) / 16) * 16, 16, 160);
+    const R = THREE.MathUtils.clamp(Math.ceil((dist * 0.95) / 16) * 16, 16, SHADOW_MAX_RADIUS);
     const lightDist = Math.max(R * 2.5, 260);
 
     /*
@@ -299,6 +317,8 @@ function updateShadowFrustum(force) {
 
     shadowFrustumDist = dist;
     shadowFrustumTarget.copy(controls.target);
+    shadowDirty = true;
+    lastShadowMotion = performance.now();
 }
 
 function applySun(t, forceShadow) {
@@ -312,7 +332,7 @@ function applySun(t, forceShadow) {
      * Midday brightness with a low sun: a low sun lights roofs and streets much less, so it is stronger
      * (4.1 → 5.0) and the sky light a little brighter (1.03 → 1.12) to keep the bright noon look.
      */
-    sun.intensity = 5.0;
+    sun.intensity = 6.5;
     hemi.intensity = 0.83;
     scene.environmentIntensity = 1.12;
     scene.backgroundIntensity = 0.97;
@@ -435,8 +455,10 @@ loader.load(
             const bb = obj.geometry.boundingBox.clone().applyMatrix4(obj.matrixWorld);
             const isHuge = bb.getSize(new THREE.Vector3()).length() > hugeDiag;
 
-            obj.castShadow = ENABLE_SHADOWS && !isHuge;
-            obj.receiveShadow = ENABLE_SHADOWS;
+            /* phone: small pieces (under 2 units) cast no shadow, tiny ones (under 1) receive none */
+            const diag = bb.getSize(new THREE.Vector3()).length();
+            obj.castShadow = ENABLE_SHADOWS && !isHuge && (!IS_MOBILE || diag > 2);
+            obj.receiveShadow = ENABLE_SHADOWS && (!IS_MOBILE || diag > 1);
 
             const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
             for (const mat of materials) {
@@ -549,6 +571,11 @@ loader.load(
                 meshes: meshCount,
                 materials: materialCount,
                 shadows: ENABLE_SHADOWS,
+                get dpr() { return currentDpr; },
+                dprCeiling: MAX_DPR,
+                dprFloor: MIN_DPR,
+                shadowMap: ENABLE_SHADOWS ? SHADOW_MAP_SIZE : 0,
+                logDepth: USE_LOG_DEPTH,
                 transmission: ENABLE_TRANSMISSION,
                 loadMs,
                 triangles: renderer.info.render.triangles
@@ -646,49 +673,101 @@ function onResize() {
     const h = window.innerHeight;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_DPR));
+    /* keep the sharpness the frame-rate guard chose (only capped by the screen) */
+    currentDpr = Math.min(currentDpr, dprCeiling());
+    renderer.setPixelRatio(currentDpr);
     renderer.setSize(w, h);
 }
 window.addEventListener('resize', onResize);
 window.addEventListener('orientationchange', () => setTimeout(onResize, 250));
 
 /* ------------------------------------------------------------------ *
- *  Render loop (with a small adaptive-quality guard)
+ *  Render loop (with a two-way adaptive-quality guard)
  * ------------------------------------------------------------------ */
+/*
+ * Changing the resolution clears the canvas (one empty = black frame). So it never changes while a finger /
+ * the mouse moves the view, nor in the second after, and it is done BEFORE render() so the same frame
+ * repaints at once.
+ */
+let interacting = false;
+let lastInteraction = 0;
+controls.addEventListener('start', () => { interacting = true; lastInteraction = performance.now(); });
+controls.addEventListener('end', () => { interacting = false; lastInteraction = performance.now(); });
+
 let frames = 0;
 let lastCheck = performance.now();
 let slowTime = 0;
-let currentDpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+let fastTime = 0;
+let raiseBlockedUntil = 0;
+let currentDpr = dprCeiling();
+const SLOW_FPS = IS_MOBILE ? 28 : 35;
+const FAST_FPS = IS_MOBILE ? 50 : 55;
+
+function setDpr(dpr) {
+    currentDpr = dpr;
+    renderer.setPixelRatio(dpr);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function adaptQuality(now, busy) {
+    /* camera flights and villa transitions are not counted: they are short and heavier than normal use */
+    if (busy) {
+        frames = 0;
+        lastCheck = now;
+        return;
+    }
+    frames++;
+    const span = now - lastCheck;
+    if (span > 2000) {
+        const fps = (frames * 1000) / span;
+        if (fps < SLOW_FPS) { slowTime += span; fastTime = 0; }
+        else if (fps > FAST_FPS) { fastTime += span; slowTime = 0; }
+        else { slowTime = 0; fastTime = 0; }
+        frames = 0;
+        lastCheck = now;
+    }
+    if (interacting || now - lastInteraction < 1000) return;
+    const ceil = dprCeiling();
+    const floor = Math.min(MIN_DPR, ceil);
+    if (slowTime > 4000 && currentDpr > floor) {
+        setDpr(Math.max(floor, +(currentDpr - 0.25).toFixed(2)));
+        slowTime = 0;
+        /* it was too slow up there: do not try to go back up for a while (no up / down swinging) */
+        raiseBlockedUntil = now + 30000;
+    } else if (fastTime > 6000 && currentDpr < ceil && now > raiseBlockedUntil) {
+        setDpr(Math.min(ceil, +(currentDpr + 0.25).toFixed(2)));
+        fastTime = 0;
+    }
+}
 
 renderer.setAnimationLoop(() => {
     if (compiling) return;
     /* inside a villa the 3D view is covered: stop drawing it (the 360 tour has its own WebGL) */
     if (document.getElementById('villa-tour')?.classList.contains('open')) return;
-    if (!hotspots || !hotspots.isFlying()) controls.update();
+    const flying = !!hotspots && hotspots.isFlying();
+    if (!flying) controls.update();
     hotspots?.update();
     villas?.update();
     updateShadowFrustum();
-    renderer.render(scene, camera);
 
-    frames++;
     const now = performance.now();
-    if (now - lastCheck > 2000) {
-        const fps = (frames * 1000) / (now - lastCheck);
-        const minDpr = IS_MOBILE ? 0.8 : 1;
-        if (fps < (IS_MOBILE ? 28 : 35) && currentDpr > minDpr) {
-            slowTime += now - lastCheck;
-            if (slowTime > 4000) {
-                currentDpr = Math.max(minDpr, currentDpr - 0.15);
-                renderer.setPixelRatio(currentDpr);
-                renderer.setSize(window.innerWidth, window.innerHeight);
-                slowTime = 0;
-            }
-        } else {
-            slowTime = 0;
+    adaptQuality(now, flying || !!villas?.isBusy());
+
+    /*
+     * Shadow map: computer = redrawn as soon as the sun's frustum moved; phone = only once the camera
+     * has been still for SHADOW_IDLE_MS, never during a gesture or a camera flight (the old shadows stay
+     * correct in place meanwhile, they just cover the previous area).
+     */
+    if (ENABLE_SHADOWS && shadowDirty) {
+        const ready = !IS_MOBILE || !shadowDrawn || (!interacting && !flying && now - lastShadowMotion > SHADOW_IDLE_MS);
+        if (ready) {
+            renderer.shadowMap.needsUpdate = true;
+            shadowDirty = false;
+            shadowDrawn = true;
         }
-        frames = 0;
-        lastCheck = now;
     }
+
+    renderer.render(scene, camera);
 });
 
 /* expose a few things for debugging */

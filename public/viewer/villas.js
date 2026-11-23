@@ -375,13 +375,17 @@ export function initVillas({ THREE, scene, camera, controls, renderer, root, nor
             tipCard.style.left = `${p.x}px`;
             tipCard.style.top = `${p.y}px`;
         }
-        for (const m of [...Object.values(unitMeshes), ...otherMeshes]) {
-            const target = m.userData.targetOpacity;
-            const mat = m.material;
-            if (Math.abs(mat.opacity - target) > 0.002) mat.opacity += (target - mat.opacity) * 0.18;
-            else mat.opacity = target;
-            if (target === 0 && mat.opacity === 0) m.visible = false;
-        }
+        /* no new array every frame (141+ shapes): loop the two lists directly */
+        for (const id in unitMeshes) fade(unitMeshes[id]);
+        for (let i = 0; i < otherMeshes.length; i++) fade(otherMeshes[i]);
+    }
+
+    function fade(m) {
+        const target = m.userData.targetOpacity;
+        const mat = m.material;
+        if (Math.abs(mat.opacity - target) > 0.002) mat.opacity += (target - mat.opacity) * 0.18;
+        else mat.opacity = target;
+        if (target === 0 && mat.opacity === 0) m.visible = false;
     }
 
     window.addEventListener('popstate', () => {
