@@ -376,7 +376,7 @@ function createSpin360(parent, tour, type, startFolder) {
 
     /* turning by pixels: the house follows the finger exactly (fast swipe = several frames),
        the leftover pixels are kept so slow drags stay precise */
-    const STEP_PX = 8;                 /* pixels per frame, as before */
+    const STEP_PX = 14;                /* pixels per frame (bigger = slower turn) */
     let acc = 0;
     function turnBy(px) {
         if (!n) return;
@@ -391,14 +391,15 @@ function createSpin360(parent, tour, type, startFolder) {
     const stopGlide = () => { if (glide) { cancelAnimationFrame(glide); glide = 0; } };
     function startGlide() {
         stopGlide();
-        if (Math.abs(velocity) < 0.15) return;
+        velocity = Math.max(-1.2, Math.min(1.2, velocity)); /* cap: a flick never spins the house round */
+        if (Math.abs(velocity) < 0.3) return;
         let last = performance.now();
         const step = (now) => {
             const dt = Math.min(48, now - last);
             last = now;
             turnBy(velocity * dt);
-            velocity *= Math.pow(0.93, dt / 16.7);
-            glide = !stopped && Math.abs(velocity) > 0.03 ? requestAnimationFrame(step) : 0;
+            velocity *= Math.pow(0.86, dt / 16.7); /* short glide */
+            glide = !stopped && Math.abs(velocity) > 0.08 ? requestAnimationFrame(step) : 0;
         };
         glide = requestAnimationFrame(step);
     }
@@ -440,7 +441,7 @@ function createSpin360(parent, tour, type, startFolder) {
         e.preventDefault();
         stopGlide();
         const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-        turnBy((e.deltaMode === 1 ? d * 16 : d) * 0.5);
+        turnBy((e.deltaMode === 1 ? d * 16 : d) * 0.25);
     };
     wrap.addEventListener('wheel', onWheel, { passive: false });
 
