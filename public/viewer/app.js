@@ -6,7 +6,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { initHotspots } from './hotspots.js?v=34';
-import { initVillas, isVillaShape } from './villas.js?v=8';
+import { initVillas, isVillaShape } from './villas.js?v=9';
 
 /* ------------------------------------------------------------------ *
  *  Device profile — same agreed settings as the previous viewer

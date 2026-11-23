@@ -12,7 +12,7 @@
 import {
     COMPLEX, STATUS_COLOR, STATUS_AR, loadTour, cardPhoto, unitPrice, sarParts,
 } from './villa-data.js?v=1';
-import { openVillaTour, closeVillaTour, isTourOpen, setVisiteImageBase, favs } from './villa-tour.js?v=2';
+import { openVillaTour, closeVillaTour, isTourOpen, setVisiteImageBase, favs, preloadAllVillaFrames, preloadVillaType } from './villa-tour.js?v=3';
 
 const SHAPE_RE = /^\d+$/;               /* "10.001" in the file → "10001" once loaded by three.js */
 const NOT_FOR_SALE_SHAPE = 'Rectangle001';
@@ -96,6 +96,12 @@ export function initVillas({ THREE, scene, camera, controls, renderer, root, nor
         const want = new URLSearchParams(location.search).get('villa');
         const u = want && Object.values(units).find((x) => x.displayId === want);
         if (u) enter(u, false);
+        /* once the 3D view is up (and settled a moment): villa frames in the background, computers only */
+        const waitReady = () => {
+            if (window.__VIEWER_READY__) setTimeout(() => preloadAllVillaFrames(t), 1500);
+            else setTimeout(waitReady, 500);
+        };
+        waitReady();
     }).catch((e) => console.warn('villas: data failed', e));
 
     function paint(mesh, unit) {
@@ -257,6 +263,7 @@ export function initVillas({ THREE, scene, camera, controls, renderer, root, nor
         syncMeshVisibility();
         showHover(null);
         showEnterCard(unit);
+        if (tour) preloadVillaType(tour, unit.type); /* likely next step: entering this villa */
         const view = viewForVilla(mesh);
         hotspots.unlock();
         hotspots.flyTo(view.pos, view.target, 3000, () => {

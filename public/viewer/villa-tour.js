@@ -214,6 +214,120 @@ export function openVillaTour({ unit, tour, onClose, pushUrl = true }) {
 }
 
 /* ------------------------------------------------------------------ *
+ *  Villa frames preloaded on the maquette, so the house turns smoothly as soon as you enter.
+ *  Computers: the floor that opens first (Final) of every villa type, after the 3D view is ready.
+ *  Phones: only the type of the villa you click, from that first click (saves mobile data).
+ *  Spin360 takes its pictures from this cache.
+ * ------------------------------------------------------------------ */
+const frameCache = new Map(); /* src → HTMLImageElement */
+const preloadQueue = [];
+let preloadWorkers = 0;
+
+const lightDevice = () =>
+    window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 900;
+const saveData = () => Boolean(navigator.connection?.saveData);
+
+function cachedFrame(src) {
+    const img = frameCache.get(src);
+    if (img && img.complete && !img.naturalWidth) { frameCache.delete(src); return null; } /* failed: retry later */
+    return img ?? null;
+}
+
+function fetchFrame(src) {
+    let img = cachedFrame(src);
+    if (!img) {
+        img = new Image();
+        img.decoding = 'async';
+        img.src = src;
+        frameCache.set(src, img);
+    }
+    if (img.complete) return Promise.resolve();
+    const el = img;
+    return new Promise((resolve) => {
+        el.addEventListener('load', resolve, { once: true });
+        el.addEventListener('error', resolve, { once: true });
+    });
+}
+
+/** Frames of one floor of a villa type, nearest to the front door first. */
+function floorUrls(tour, type, f) {
+    const n = tour.villaFrames;
+    if (!n || !f) return [];
+    const front = Math.min(n - 1, COMPLEX.villa360.frontFrame ?? 0);
+    const off = f.frameOffset ?? 0;
+    const out = [];
+    for (let d = 0; d <= Math.ceil(n / 2); d++) {
+        for (const i of d ? [front + d, front - d] : [front]) {
+            const idx = ((i % n) + n) % n;
+            const src = tourVillaUrl(tour, type, f.subfolder, (idx + off) % n);
+            if (src) out.push(src);
+        }
+    }
+    return [...new Set(out)];
+}
+
+/** Frames of the floor that opens first (Final). */
+function openingFloorUrls(tour, type) {
+    const floors = COMPLEX.villa360.floors;
+    return floorUrls(tour, type, floors.find((x) => x.id === 'etage_2') ?? floors[floors.length - 1]);
+}
+
+/* true only while the turning villa is open AND its floor is fully downloaded:
+   the background download runs then, and waits while that floor (or the 360 walk-through) is loading */
+let spinIdle = false;
+
+function runPreload(workers) {
+    const work = async () => {
+        preloadWorkers += 1;
+        while (preloadQueue.length) {
+            /* inside a villa: wait while the viewer is loading what is on screen, don't compete with it */
+            if (current && !spinIdle) { await new Promise((r) => setTimeout(r, 600)); continue; }
+            const src = preloadQueue.shift();
+            if (!cachedFrame(src)?.complete) await fetchFrame(src);
+        }
+        preloadWorkers -= 1;
+    };
+    for (let w = preloadWorkers; w < workers; w++) void work();
+}
+
+/** Computers only: every villa type's opening floor, in the background (call when the 3D view is ready). */
+export function preloadAllVillaFrames(tour) {
+    if (lightDevice() || saveData()) return;
+    const types = Object.keys(COMPLEX.villaTypes).map(Number);
+    const lists = types.map((t) => openingFloorUrls(tour, t));
+    /* interleaved: the frames near the front door of every type come first */
+    for (let i = 0; i < Math.max(0, ...lists.map((l) => l.length)); i++) {
+        for (const l of lists) if (l[i] && !preloadQueue.includes(l[i])) preloadQueue.push(l[i]);
+    }
+    runPreload(3);
+}
+
+/** Put urls at the front of the queue (moved there if they were already waiting further back). */
+function preloadFirst(urls) {
+    const todo = urls.filter((u) => !cachedFrame(u)?.complete);
+    for (const u of todo) { const k = preloadQueue.indexOf(u); if (k >= 0) preloadQueue.splice(k, 1); }
+    preloadQueue.unshift(...todo);
+    runPreload(lightDevice() ? 2 : 3);
+}
+
+/** The villa just clicked (first click, before entering): its type goes to the front of the queue. */
+export function preloadVillaType(tour, type) {
+    if (saveData()) return;
+    preloadFirst(openingFloorUrls(tour, type));
+}
+
+/** Inside a villa, once the floor on screen is complete: its other floors (the likely next click). */
+function preloadOtherFloors(tour, type) {
+    if (saveData()) return;
+    const lists = COMPLEX.villa360.floors.map((f) => floorUrls(tour, type, f));
+    const urls = [];
+    for (let i = 0; i < Math.max(0, ...lists.map((l) => l.length)); i++) {
+        for (const l of lists) if (l[i]) urls.push(l[i]);
+    }
+    preloadFirst(urls);
+}
+
+/* ------------------------------------------------------------------ *
  *  Spin360 — the villa type turning, one picture per angle (60 per floor)
  * ------------------------------------------------------------------ */
 function createSpin360(parent, tour, type, startFolder) {
@@ -297,7 +411,9 @@ function createSpin360(parent, tour, type, startFolder) {
         const src = tourVillaUrl(tour, type, folder, (index + offset) % n);
         if (!src) { setLoading(false); return Promise.resolve(); }
         const gen = generation;
-        const img = existing ?? new Image();
+        /* reuse the frame preloaded on the maquette when there is one */
+        const img = existing ?? cachedFrame(src) ?? new Image();
+        if (!frameCache.has(src)) frameCache.set(src, img);
         images[index] = img;
         img.decoding = 'async';
         const promise = new Promise((resolve) => {
@@ -317,6 +433,7 @@ function createSpin360(parent, tour, type, startFolder) {
         });
         pending.set(index, promise);
         if (img.src !== src) img.src = src;
+        else if (img.complete) { if (img.naturalWidth) img.onload(); else img.onerror(); } /* already downloaded */
         return promise;
     }
 
@@ -369,7 +486,17 @@ function createSpin360(parent, tour, type, startFolder) {
                 await ensureFrame(queue.shift());
             }
         };
-        for (let w = 0; w < 4; w++) void worker();
+        spinIdle = false;
+        const workers = [];
+        for (let w = 0; w < 4; w++) workers.push(worker());
+        /* whole floor downloaded (the 9 frames around the view are in `pending`, the rest in the workers) */
+        Promise.all(workers)
+            .then(() => Promise.all([...pending.values()]))
+            .then(() => {
+                if (stopped || myGen !== generation) return;
+                spinIdle = true;
+                preloadOtherFloors(tour, type);
+            });
     }
 
     const spin = (dir) => { if (n > 0) { pos += dir; requestShow(); } };
@@ -479,6 +606,7 @@ function createSpin360(parent, tour, type, startFolder) {
         },
         dispose() {
             stopped = true;
+            spinIdle = false;
             stopHold();
             stopGlide();
             if (showQueued) cancelAnimationFrame(showQueued);
