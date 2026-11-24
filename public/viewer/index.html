@@ -262,7 +262,7 @@
   /* ---- intro video (every visit), skip button like YouTube ---- */
   #intro { position: fixed; inset: 0; z-index: 100; background: #000; transition: opacity .6s ease; }
   #intro.out { opacity: 0; pointer-events: none; }
-  #intro video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  #intro video { width: 100%; height: 100%; object-fit: contain; display: block; } /* whole video visible, nothing cut */
   /* skip: bottom right; sound: bottom left (like YouTube's controls); thin progress line at the very bottom */
   #introSkip, #introSound {
     position: absolute; bottom: max(28px, calc(env(safe-area-inset-bottom) + 20px));
