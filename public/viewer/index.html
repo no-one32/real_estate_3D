@@ -263,25 +263,42 @@
   #intro { position: fixed; inset: 0; z-index: 100; background: #000; transition: opacity .6s ease; }
   #intro.out { opacity: 0; pointer-events: none; }
   #intro video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* skip: bottom right; sound: bottom left (like YouTube's controls); thin progress line at the very bottom */
+  #introSkip, #introSound {
+    position: absolute; bottom: max(28px, calc(env(safe-area-inset-bottom) + 20px));
+    display: flex; align-items: center; justify-content: center; cursor: pointer; color: #fff;
+    border: 1px solid rgba(255, 255, 255, .28); background: rgba(15, 15, 15, .55);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 6px 22px rgba(0, 0, 0, .35);
+    transition: background .2s ease, color .2s ease, transform .15s ease;
+  }
+  #introSkip:active, #introSound:active { transform: scale(.95); }
   #introSkip {
-    position: absolute; right: 0; bottom: max(60px, calc(env(safe-area-inset-bottom) + 40px));
-    display: flex; align-items: center; gap: 10px;
-    padding: 12px 18px 12px 22px; border: 1px solid rgba(255, 255, 255, .35); border-right: 0;
-    background: rgba(0, 0, 0, .65); color: #fff; cursor: pointer;
+    right: max(24px, env(safe-area-inset-right));
+    gap: 10px; height: 48px; padding: 0 20px 0 24px; border-radius: 99px;
     font: 600 17px "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif;
-    transition: background .2s ease;
+    animation: introIn .5s ease 1s both;
   }
-  #introSkip:hover { background: rgba(0, 0, 0, .85); }
+  #introSkip:hover { background: #fff; color: #111; }
+  #introSkip svg { width: 20px; height: 20px; transform: scaleX(-1); }
   #introSound {
-    position: absolute; left: max(16px, env(safe-area-inset-left)); top: max(16px, env(safe-area-inset-top));
-    display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 99px;
-    border: 1px solid rgba(255, 255, 255, .35); background: rgba(0, 0, 0, .65); color: #fff; cursor: pointer;
-    font: 600 15px "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+    left: max(24px, env(safe-area-inset-left));
+    width: 48px; height: 48px; padding: 0; border-radius: 50%;
+    animation: introIn .5s ease 1s both;
   }
-  #introSound[hidden] { display: none; }
-  #introSound svg { width: 20px; height: 20px; }
-  #introSkip svg { width: 22px; height: 22px; transform: scaleX(-1); }
-  @media (max-width: 520px) { #introSkip { font-size: 15px; padding: 10px 14px 10px 18px; bottom: max(40px, calc(env(safe-area-inset-bottom) + 24px)); } }
+  #introSound:hover { background: rgba(255, 255, 255, .22); }
+  #introSound svg { width: 24px; height: 24px; }
+  #introSound .on { display: none; }
+  #introSound.unmuted .on { display: block; }
+  #introSound.unmuted .off { display: none; }
+  #introBar { direction: ltr; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255, 255, 255, .2); }
+  #introBar i { display: block; height: 100%; width: 0; background: #ff2d2d; }
+  @keyframes introIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @media (max-width: 520px) {
+    #introSkip { height: 42px; font-size: 15px; padding: 0 16px 0 20px; right: max(16px, env(safe-area-inset-right)); }
+    #introSound { width: 42px; height: 42px; left: max(16px, env(safe-area-inset-left)); }
+    #introSkip, #introSound { bottom: max(20px, calc(env(safe-area-inset-bottom) + 14px)); }
+  }
 
   #editToast { position: fixed; z-index: 30; left: 50%; bottom: 60px; transform: translateX(-50%); padding: 8px 14px; border-radius: 10px; background: #12243d; color: #fff; font: 13px monospace; direction: ltr; display: none; }
   #editToast.show { display: block; }
@@ -293,13 +310,14 @@
 <!-- intro video: shown on the first visit only (the 3D model loads behind it) -->
 <div id="intro" hidden>
   <video id="introVideo" playsinline preload="auto"></video>
-  <button id="introSound" type="button" hidden>
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16.5 12a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/></svg>
-    تشغيل الصوت
+  <button id="introSound" type="button" aria-label="الصوت">
+    <svg class="off" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16 9.4l1.4-1.4 2.1 2.1 2.1-2.1 1.4 1.4-2.1 2.1 2.1 2.1-1.4 1.4-2.1-2.1-2.1 2.1-1.4-1.4 2.1-2.1z"/></svg>
+    <svg class="on" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16.5 12A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4z"/><path d="M14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>
   </button>
   <button id="introSkip" type="button">تخطي
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5l10 7-10 7z"/><rect x="17" y="5" width="2.5" height="14"/></svg>
   </button>
+  <div id="introBar"><i></i></div>
 </div>
 <script>
 (function () {
@@ -319,14 +337,16 @@
   v.addEventListener('ended', close);
   v.addEventListener('error', close);
   document.getElementById('introSkip').addEventListener('click', close);
-  var snd = document.getElementById('introSound');
-  function unmute() { v.muted = false; snd.hidden = true; v.play().catch(function () {}); }
-  snd.addEventListener('click', function (e) { e.stopPropagation(); unmute(); });
-  v.addEventListener('click', function () { if (v.muted) unmute(); });
-  // try with sound first; browsers usually block that on a first visit, then play muted + show the sound button
+  var snd = document.getElementById('introSound'), bar = document.querySelector('#introBar i');
+  function showSound() { snd.classList.toggle('unmuted', !v.muted); }
+  function toggleSound() { v.muted = !v.muted; showSound(); if (v.paused) v.play().catch(function () {}); }
+  snd.addEventListener('click', function (e) { e.stopPropagation(); toggleSound(); });
+  v.addEventListener('click', function () { if (v.muted) toggleSound(); });
+  v.addEventListener('timeupdate', function () { if (v.duration) bar.style.width = (v.currentTime / v.duration * 100) + '%'; });
+  // try with sound first; browsers usually block that on a first visit, then play muted (the icon shows muted)
   v.muted = false;
-  v.play().catch(function () {
-    v.muted = true; snd.hidden = false;
+  v.play().then(showSound).catch(function () {
+    v.muted = true; showSound();
     v.play().catch(close); // even muted refused: go straight to the 3D view
   });
 })();
