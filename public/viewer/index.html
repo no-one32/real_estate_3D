@@ -262,7 +262,10 @@
   /* ---- intro video (every visit), skip button like YouTube ---- */
   #intro { position: fixed; inset: 0; z-index: 100; background: #000; transition: opacity .6s ease; }
   #intro.out { opacity: 0; pointer-events: none; }
-  #intro video { width: 100%; height: 100%; object-fit: contain; display: block; } /* whole video visible, nothing cut */
+  /* whole video visible (nothing cut) in front of a blurred, enlarged copy of itself that fills the rest: no black bars */
+  #intro video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+  #introBg { position: absolute; inset: -40px; width: calc(100% + 80px); height: calc(100% + 80px);
+    filter: blur(28px) brightness(.75) saturate(1.2); pointer-events: none; }
   /* skip: bottom right; sound: bottom left (like YouTube's controls); thin progress line at the very bottom */
   #introSkip, #introSound {
     position: absolute; bottom: max(28px, calc(env(safe-area-inset-bottom) + 20px));
@@ -312,6 +315,7 @@
 
 <!-- intro video: shown on every visit (the 3D model loads behind it); leaves only on skip or at its end -->
 <div id="intro" hidden>
+  <canvas id="introBg" width="64" height="36"></canvas>
   <video id="introVideo" src="./intro.mp4" playsinline preload="auto"></video>
   <button id="introSound" type="button" aria-label="الصوت">
     <svg class="off" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16 9.4l1.4-1.4 2.1 2.1 2.1-2.1 1.4 1.4-2.1 2.1 2.1 2.1-1.4 1.4-2.1-2.1-2.1 2.1-1.4-1.4 2.1-2.1z"/></svg>
@@ -344,6 +348,13 @@
   // still downloading: show a spinner instead of a frozen picture
   v.addEventListener('waiting', function () { box.classList.add('wait'); });
   v.addEventListener('playing', function () { box.classList.remove('wait'); });
+  // blurred background: the current picture drawn small on a canvas, stretched and blurred by CSS (cheap)
+  var bg = document.getElementById('introBg'), bgc = bg.getContext('2d');
+  (function draw() {
+    if (done) return;
+    if (v.readyState >= 2) bgc.drawImage(v, 0, 0, bg.width, bg.height);
+    requestAnimationFrame(draw);
+  })();
   v.addEventListener('timeupdate', function () { if (v.duration) bar.style.width = (v.currentTime / v.duration * 100) + '%'; });
   // try with sound first; browsers usually block that on a first visit, then play muted (the icon shows muted)
   v.muted = false;
