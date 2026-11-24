@@ -259,7 +259,7 @@
   #places button:hover { background: #eef4fb; }
   #places button svg { color: #3b7dd8; flex: none; }
 
-  /* ---- intro video (first visit only), skip button like YouTube ---- */
+  /* ---- intro video (every visit), skip button like YouTube ---- */
   #intro { position: fixed; inset: 0; z-index: 100; background: #000; transition: opacity .6s ease; }
   #intro.out { opacity: 0; pointer-events: none; }
   #intro video { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -307,7 +307,7 @@
 <body>
 <div id="app"></div>
 
-<!-- intro video: shown on the first visit only (the 3D model loads behind it) -->
+<!-- intro video: shown on every visit (the 3D model loads behind it); leaves only on skip or at its end -->
 <div id="intro" hidden>
   <video id="introVideo" playsinline preload="auto"></video>
   <button id="introSound" type="button" aria-label="الصوت">
@@ -321,13 +321,10 @@
 </div>
 <script>
 (function () {
-  var KEY = 'introSeen';
-  try { if (localStorage.getItem(KEY)) return; } catch (e) {}
   var box = document.getElementById('intro'), v = document.getElementById('introVideo');
   var done = false;
   function close() {
     if (done) return; done = true;
-    try { localStorage.setItem(KEY, '1'); } catch (e) {}
     v.pause();
     box.classList.add('out');
     setTimeout(function () { box.remove(); }, 700);
@@ -341,7 +338,6 @@
   function showSound() { snd.classList.toggle('unmuted', !v.muted); }
   function toggleSound() { v.muted = !v.muted; showSound(); if (v.paused) v.play().catch(function () {}); }
   snd.addEventListener('click', function (e) { e.stopPropagation(); toggleSound(); });
-  v.addEventListener('click', function () { if (v.muted) toggleSound(); });
   v.addEventListener('timeupdate', function () { if (v.duration) bar.style.width = (v.currentTime / v.duration * 100) + '%'; });
   // try with sound first; browsers usually block that on a first visit, then play muted (the icon shows muted)
   v.muted = false;
