@@ -9,6 +9,11 @@
       "source": "/",
       "destination": "/viewer/",
       "permanent": false
+    },
+    {
+      "source": "/viewer",
+      "destination": "/viewer/",
+      "permanent": false
     }
   ],
   "headers": [
