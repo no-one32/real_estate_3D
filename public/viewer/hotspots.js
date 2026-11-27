@@ -106,7 +106,12 @@ export const HOTSPOTS = [
 const svg = (k, size = 18) =>
     `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k] || ICONS.home}</svg>`;
 
-export function initHotspots({ THREE, camera, controls, renderer, root, normScale, homeView, editMode }) {
+/* text typed in the admin is shown as text, never as HTML */
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+/* pins: the admin's pins (GLB Studio); null = the built-in HOTSPOTS above */
+export function initHotspots({ THREE, camera, controls, renderer, root, normScale, homeView, editMode, pins = null }) {
+    const PINS = pins || HOTSPOTS;
     const layer = document.getElementById('hotspots');
     const card = document.getElementById('hcard');
     const list = document.getElementById('places');
@@ -116,12 +121,12 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
     root.updateMatrixWorld(true);
     const toWorld = (p) => root.localToWorld(new THREE.Vector3(p[0], p[1], p[2]));
 
-    const items = HOTSPOTS.map((h) => {
+    const items = PINS.map((h) => {
         const el = document.createElement('button');
         el.type = 'button';
         el.className = 'hs' + (h.villa ? ' hs-villa' : '') + (h.far ? ' hs-far' : '');
         el.setAttribute('aria-label', h.title);
-        el.innerHTML = `<span class="hs-pin">${svg(h.icon)}<b>${h.title}</b></span><i class="hs-stem"></i>`;
+        el.innerHTML = `<span class="hs-pin">${svg(h.icon)}<b>${esc(h.title)}</b></span><i class="hs-stem"></i>`;
         el.addEventListener('click', (e) => {
             e.stopPropagation();
             open(h);
@@ -154,12 +159,12 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
 
     /* ---------- places list (like the Novoross side list) ---------- */
     if (list) {
-        list.innerHTML = '<h3>الأماكن</h3>' + HOTSPOTS.map((h) =>
-            `<button type="button" data-id="${h.id}">${svg(h.icon, 17)}<span>${h.title}</span></button>`).join('');
+        list.innerHTML = '<h3>الأماكن</h3>' + PINS.map((h) =>
+            `<button type="button" data-id="${esc(h.id)}">${svg(h.icon, 17)}<span>${esc(h.title)}</span></button>`).join('');
         list.addEventListener('click', (e) => {
             const b = e.target.closest('button[data-id]');
             if (!b) return;
-            const h = HOTSPOTS.find((x) => x.id === b.dataset.id);
+            const h = PINS.find((x) => x.id === b.dataset.id);
             if (h) open(h);
             list.classList.remove('open');
         });
@@ -350,14 +355,16 @@ export function initHotspots({ THREE, camera, controls, renderer, root, normScal
         items.forEach((it) => it.el.classList.toggle('on', it.h === h));
         list?.classList.remove('open'); /* same place on the left as the panel */
         /* picture of the place, rendered from the model (places/<id>.webp); none for far places */
-        const img = h.far ? '' : `<img class="hc-img" src="./places/${h.id}.webp?v=2" alt="${h.title}" loading="lazy" onerror="this.remove()">`;
+        /* admin pins: their own picture (a full URL) or one shipped here ("places/<id>.webp") */
+        const photo = h.photo ? (/^https:\/\//.test(h.photo) ? h.photo : `./${h.photo}?v=2`) : `./places/${h.id}.webp?v=2`;
+        const img = h.far ? '' : `<img class="hc-img" src="${esc(photo)}" alt="${esc(h.title)}" loading="lazy" onerror="this.remove()">`;
         card.innerHTML = `
             ${img}
             <button type="button" class="hc-x" aria-label="إغلاق">×</button>
             <div class="hc-body">
-                <div class="hc-head"><span class="hc-ico">${svg(h.icon, 24)}</span><h2>${h.title}</h2></div>
-                ${(Array.isArray(h.text) ? h.text : [h.text]).map((t) => `<p>${t}</p>`).join('')}
-                ${h.facts?.length ? `<ul class="hc-facts">${h.facts.map((f) => `<li>${f}</li>`).join('')}</ul>` : ''}
+                <div class="hc-head"><span class="hc-ico">${svg(h.icon, 24)}</span><h2>${esc(h.title)}</h2></div>
+                ${(Array.isArray(h.text) ? h.text : [h.text]).map((t) => `<p>${esc(t)}</p>`).join('')}
+                ${h.facts?.length ? `<ul class="hc-facts">${h.facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
             </div>`;
         card.classList.toggle('has-img', !!img);
         card.classList.add('open');

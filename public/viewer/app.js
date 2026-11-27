@@ -5,7 +5,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { initHotspots } from './hotspots.js?v=34';
+import { initHotspots } from './hotspots.js?v=35';
 import { initVillas, isVillaShape } from './villas.js?v=9';
 
 /* ------------------------------------------------------------------ *
@@ -367,8 +367,18 @@ const TEXTURE_SLOTS = [
     'iridescenceMap', 'transmissionMap', 'thicknessMap'
 ];
 
+/*
+ * Model and pins set by the admin (GLB Studio on the main site), saved in Supabase:
+ * media/<project>/config/model-pins.json = { modelUrl, pins }. Nothing saved → this viewer's own model and pins.
+ */
+const MEDIA = 'https://bmsyikmojhvdzwynojoo.supabase.co/storage/v1/object/public/media';
+const PROJECT = (params.get('project') || 'villas-ajyad').replace(/[^\w-]/g, '');
+const ADMIN = await fetch(`${MEDIA}/${PROJECT}/config/model-pins.json`, { cache: 'no-cache' })
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
+
 /* Interactive.glb = the same model + one invisible shape per villa (hover / click, villas.js) */
-const MODEL_URL = params.get('model') || '/models/Interactive.glb';
+const MODEL_URL = params.get('model') || ADMIN?.modelUrl || '/models/Interactive.glb';
 
 /* after the download: creep from 90% to 99% while the model is unpacked, with a message, so it never looks stuck */
 let unpackTimer = null;
@@ -546,6 +556,7 @@ loader.load(
         /* pins over the mosque, school, park, villas… (hotspots.js) */
         hotspots = initHotspots({
             THREE, camera, controls, renderer, root, normScale,
+            pins: Array.isArray(ADMIN?.pins) ? ADMIN.pins : null,
             homeView: () => ({ position: homePosition, target: homeTarget }),
             editMode: params.get('edit') === '1',
         });
